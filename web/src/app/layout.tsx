@@ -2,9 +2,41 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "LOLOS CPNS — Platform Persiapan & Simulasi CAT SKD Berbasis AI",
+  metadataBase: new URL("https://loloscpns.id"),
+  title: {
+    default: "LOLOS CPNS — Platform Persiapan & Simulasi CAT SKD Berbasis AI",
+    template: "%s | LOLOS CPNS",
+  },
   description:
-    "Platform persiapan dan simulasi Computer Assisted Test (CAT) Seleksi Kompetensi Dasar (SKD) CPNS mengacu pada Keputusan Menteri PANRB Nomor 321 Tahun 2024.",
+    "Platform persiapan dan simulasi Computer Assisted Test (CAT) Seleksi Kompetensi Dasar (SKD) CPNS mengacu 100% pada Keputusan Menteri PANRB Nomor 321 Tahun 2024. Mendukung evaluasi deterministik 7 kategori formasi, aksesibilitas disabilitas sensorik netra (130 menit), dan Tutor AI Sokratik.",
+  keywords: [
+    "Simulasi CAT CPNS",
+    "Tryout SKD CPNS",
+    "Kepmenpan-RB Nomor 321 Tahun 2024",
+    "Nilai Ambang Batas SKD CPNS",
+    "Soal TWK TIU TKP CPNS",
+    "Tutor AI CPNS",
+    "CAT BKN Simulasi",
+  ],
+  authors: [{ name: "Tim Rekayasa AI LOLOS CPNS" }],
+  creator: "LOLOS CPNS",
+  publisher: "LOLOS CPNS",
+  alternates: {
+    canonical: "/",
+  },
+  openGraph: {
+    type: "website",
+    locale: "id_ID",
+    url: "https://loloscpns.id",
+    siteName: "LOLOS CPNS",
+    title: "LOLOS CPNS — Taklukkan Nilai Ambang Batas SKD CPNS dengan Presisi AI",
+    description:
+      "Simulasi CAT SKD 110 soal standar BKN, evaluasi deterministik 7 formasi Kepmenpan-RB No. 321 Tahun 2024, Analisis Kesenjangan Nilai, serta Tutor AI Sokratik.",
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
 };
 
 export default function TataLetakUtama({

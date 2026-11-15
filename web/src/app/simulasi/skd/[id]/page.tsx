@@ -16,8 +16,12 @@ import {
 } from "@/lib/scoring-engine";
 import {
   analisisKesenjanganNilaiSKD,
-  HasilAnalisisKesenjanganSKD,
+  type HasilAnalisisKesenjanganSKD,
 } from "@/lib/gap-analyzer";
+import {
+  evaluasiAksesPaketSimulasi,
+  type TingkatLanggananPeserta,
+} from "@/lib/access-control";
 import PanelLatihanPerbaikanAdaptif from "@/components/AdaptiveDrillModal";
 import WidgetTutorSokratik from "@/components/SocraticTutorWidget";
 import type {
@@ -45,6 +49,30 @@ export default function HalamanSimulatorCATSKD() {
   const [jenisFormasi, setJenisFormasi] = useState<JenisFormasiSKD>("umum");
   const [disabilitasSensorikNetra, setDisabilitasSensorikNetra] =
     useState<boolean>(false);
+  const [tingkatLangganan, setTingkatLangganan] =
+    useState<TingkatLanggananPeserta>("gratis");
+
+  useEffect(() => {
+    try {
+      const tersimpan = localStorage.getItem(
+        "lolos_cpns_tingkat_langganan"
+      ) as TingkatLanggananPeserta | null;
+      if (
+        tersimpan === "gratis" ||
+        tersimpan === "intensif_skd" ||
+        tersimpan === "terpadu_cpns"
+      ) {
+        setTingkatLangganan(tersimpan);
+      }
+    } catch {
+      // Abaikan jika penyimpanan lokal tidak tersedia
+    }
+  }, []);
+
+  const hasilEvaluasiAkses = evaluasiAksesPaketSimulasi({
+    idPaket,
+    tingkatLangganan,
+  });
 
   // State Pelaksanaan Ujian CAT
   const [tahapHalaman, setTahapHalaman] =
@@ -257,6 +285,59 @@ export default function HalamanSimulatorCATSKD() {
   const daftarSoalTerfilter = daftarSoal110.filter((butir) =>
     filterSubtes === "SEMUA" ? true : butir.category === filterSubtes
   );
+
+  // ============================================================================
+  // TAHAP 0: KENDALI AKSES FREEMIUM (PROTEKSI PAKET BERBAYAR)
+  // ============================================================================
+  if (!hasilEvaluasiAkses.diizinkan) {
+    return (
+      <main className="mx-auto max-w-3xl px-6 py-14">
+        <section className="rounded-2xl border-2 border-amber-300 bg-white p-8 shadow-md">
+          <span className="inline-block rounded-full bg-amber-100 px-3.5 py-1 text-xs font-extrabold text-amber-800">
+            Kendali Akses Paket Berbayar
+          </span>
+          <h1 className="mt-3 text-2xl font-extrabold text-slate-900">
+            Paket Simulasi Ini Memerlukan Langganan Aktif
+          </h1>
+          <p className="mt-2 text-sm leading-relaxed text-slate-700">
+            {hasilEvaluasiAkses.alasan}
+          </p>
+
+          <div className="mt-6 rounded-xl border border-slate-200 bg-slate-50 p-4 text-xs text-slate-700">
+            <p className="font-bold text-slate-900">
+              Keuntungan Mengaktifkan Paket Berbayar:
+            </p>
+            <ul className="mt-2 space-y-1.5">
+              <li>
+                ✓ Akses penuh ke seluruh Paket Simulasi Akbar CAT SKD (110 Soal)
+              </li>
+              <li>
+                ✓ Kuota Diskusi Tutor AI Sokratik tanpa batas harian (3 kali/hari pada akun Gratis)
+              </li>
+              <li>
+                ✓ Latihan Perbaikan Adaptif dinamis pada 3 sub-topik terlemah Anda
+              </li>
+            </ul>
+          </div>
+
+          <div className="mt-6 flex flex-wrap items-center gap-3">
+            <Link
+              href={`/pembayaran?paket=${idPaket}`}
+              className="rounded-xl bg-blue-700 px-6 py-3 text-sm font-bold text-white shadow hover:bg-blue-800"
+            >
+              Aktifkan Paket Sekarang (QRIS / Virtual Account) →
+            </Link>
+            <Link
+              href="/simulasi/skd/paket-perdana-gratis"
+              className="rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+            >
+              Buka Paket Perdana Gratis
+            </Link>
+          </div>
+        </section>
+      </main>
+    );
+  }
 
   // ============================================================================
   // TAHAP 1: PENGATURAN PESERTA & PEMILIHAN 7 KATEGORI FORMASI

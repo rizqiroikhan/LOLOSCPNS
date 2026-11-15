@@ -47,6 +47,9 @@ export default function HalamanUtama() {
             <a href="#paket-belajar" className="hover:text-blue-700">
               Paket Belajar
             </a>
+            <Link href="/pembayaran" className="hover:text-blue-700">
+              Aktivasi Paket
+            </Link>
             <Link href="/admin/kurasi-soal" className="hover:text-indigo-700">
               Studio Kurasi Admin
             </Link>
@@ -442,10 +445,10 @@ export default function HalamanUtama() {
                 </ul>
               </div>
               <Link
-                href="/simulasi/skd/paket-intensif-skd"
+                href="/pembayaran?paket=paket-intensif-skd"
                 className="mt-6 block w-full rounded-xl bg-blue-700 py-3 text-center text-sm font-bold text-white hover:bg-blue-800"
               >
-                Mulai Simulasi Intensif SKD →
+                Aktifkan Paket Intensif SKD →
               </Link>
             </div>
 
@@ -469,10 +472,10 @@ export default function HalamanUtama() {
                 </ul>
               </div>
               <Link
-                href="/simulasi/skd/paket-terpadu-cpns"
+                href="/pembayaran?paket=paket-terpadu-cpns"
                 className="mt-6 block w-full rounded-xl bg-slate-900 py-3 text-center text-sm font-bold text-white hover:bg-slate-800"
               >
-                Pilih Paket Terpadu
+                Aktifkan Paket Terpadu →
               </Link>
             </div>
           </div>

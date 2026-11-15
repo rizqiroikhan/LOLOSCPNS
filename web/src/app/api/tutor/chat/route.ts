@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
 import { bacaKonfigurasiAI, panggilChatAI } from "@/lib/ai-client";
+import {
+  periksaBatasLajuPermintaan,
+  periksaKuotaTutorAI,
+  type TingkatLanggananPeserta,
+} from "@/lib/access-control";
 import { buatBimbinganSokratikKontekstual } from "@/lib/gap-analyzer";
 import type { QuestionRow } from "@/types/database";
 
@@ -12,7 +17,48 @@ const INSTRUKSI_SISTEM_SOKRATIK =
 
 export async function POST(request: Request) {
   try {
+    const ipKlien =
+      request.headers.get("x-forwarded-for") || "klien-tutor-lokal";
+    const hasilRateLimit = periksaBatasLajuPermintaan({
+      identitasKlien: `tutor:${ipKlien}`,
+      batasMaksimal: 15,
+      jendelaWaktuDetik: 60,
+    });
+
+    if (!hasilRateLimit.diizinkan) {
+      return NextResponse.json(
+        {
+          status: "gagal",
+          pesan: hasilRateLimit.pesanPeringatan,
+          balasan_tutor: hasilRateLimit.pesanPeringatan,
+        },
+        { status: 429 }
+      );
+    }
+
     const badan = await request.json();
+    const tingkatLangganan: TingkatLanggananPeserta =
+      badan.tingkat_langganan || "gratis";
+    const jumlahPemakaianHariIni = Number(
+      badan.jumlah_pemakaian_hari_ini || 0
+    );
+
+    const evaluasiKuota = periksaKuotaTutorAI({
+      tingkatLangganan,
+      jumlahPemakaianHariIni,
+    });
+
+    if (!evaluasiKuota.diizinkan) {
+      return NextResponse.json(
+        {
+          status: "kuota_habis",
+          pesan: evaluasiKuota.pesanKuota,
+          balasan_tutor: evaluasiKuota.pesanKuota,
+        },
+        { status: 403 }
+      );
+    }
+
     const pertanyaan: string =
       badan.pertanyaan || "Bantu saya memahami langkah penyelesaian soal ini.";
     const soal: QuestionRow = badan.soal;

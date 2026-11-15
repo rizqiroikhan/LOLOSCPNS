@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { panggilChatAI } from "@/lib/ai-client";
+import { periksaBatasLajuPermintaan } from "@/lib/access-control";
 import { bangkitkanSoalLatihanAdaptif } from "@/lib/gap-analyzer";
 import {
   normalisasiButirSoalEkstraksi,
@@ -9,6 +10,24 @@ import type { KategoriSubtesSKD, QuestionRow } from "@/types/database";
 
 export async function POST(request: Request) {
   try {
+    const ipKlien =
+      request.headers.get("x-forwarded-for") || "klien-drill-lokal";
+    const hasilRateLimit = periksaBatasLajuPermintaan({
+      identitasKlien: `drill:${ipKlien}`,
+      batasMaksimal: 10,
+      jendelaWaktuDetik: 60,
+    });
+
+    if (!hasilRateLimit.diizinkan) {
+      return NextResponse.json(
+        {
+          status: "gagal",
+          pesan: hasilRateLimit.pesanPeringatan,
+        },
+        { status: 429 }
+      );
+    }
+
     const badan = await request.json();
     const kategori = (
       String(badan.kategori || "TIU").toUpperCase() as KategoriSubtesSKD

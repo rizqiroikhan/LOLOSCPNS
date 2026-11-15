@@ -4,10 +4,12 @@ Seluruh tanggapan API kepada pengguna maupun Admin menggunakan Bahasa Indonesia 
 """
 
 import os
+import time
 from typing import Any, Dict, List, Optional
 
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from app.ai_provider import UnifiedAIProvider, ai_adapter
@@ -37,6 +39,43 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Pembatas Laju Permintaan (Rate Limiting) untuk melindungi kuota API AI
+_CATATAN_LAJU_KLIEN: Dict[str, Dict[str, float]] = {}
+_BATAS_PER_MENIT = int(os.getenv("AI_RATE_LIMIT_PER_MINUTE", "30"))
+
+
+@app.middleware("http")
+async def middleware_pembatas_laju_ai(request: Request, call_next):
+    jalur = request.url.path
+    if jalur in ("/", "/kesehatan", "/health"):
+        return await call_next(request)
+
+    ip_klien = request.client.host if request.client else "klien-lokal"
+    sekarang = time.time()
+    catatan = _CATATAN_LAJU_KLIEN.get(ip_klien)
+
+    if not catatan or sekarang >= catatan["waktu_reset"]:
+        _CATATAN_LAJU_KLIEN[ip_klien] = {
+            "jumlah": 1.0,
+            "waktu_reset": sekarang + 60.0,
+        }
+    else:
+        catatan["jumlah"] += 1.0
+        if catatan["jumlah"] > _BATAS_PER_MENIT:
+            sisa_detik = max(1, int(catatan["waktu_reset"] - sekarang))
+            return JSONResponse(
+                status_code=429,
+                content={
+                    "status": "gagal",
+                    "pesan": (
+                        f"Batas laju permintaan layanan AI tercapai. "
+                        f"Silakan tunggu {sisa_detik} detik sebelum mengirim permintaan kembali."
+                    ),
+                },
+            )
+
+    return await call_next(request)
 
 
 class PermintaanUjiAI(BaseModel):

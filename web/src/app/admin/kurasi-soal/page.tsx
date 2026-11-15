@@ -1,11 +1,11 @@
 "use client";
 
 import React, { useState } from "react";
-import Link from "next/link";
+import AdminPortalShell from "@/components/AdminPortalShell";
 import {
   CONTOH_HASIL_EKSTRAKSI_SOAL_SKD,
   DAFTAR_SUB_TOPIK_RESMI_SKD,
-  DrafKurasiSoal,
+  type DrafKurasiSoal,
 } from "@/lib/ingestion-pipeline";
 import { REGULASI_SKD_321_2024 } from "@/lib/scoring-engine";
 import type {
@@ -180,40 +180,29 @@ export default function HalamanStudioKurasiSoal() {
   }
 
   return (
-    <main className="mx-auto max-w-7xl px-6 py-10">
-      {/* Navigasi Atas */}
-      <div className="mb-8 flex flex-wrap items-center justify-between gap-4 border-b border-slate-200 pb-5">
-        <div>
+    <AdminPortalShell tabAwal="kurasi">
+      <main className="mx-auto max-w-7xl px-6 py-8">
+        {/* Judul Bagian Kurasi */}
+        <div className="mb-8 border-b border-slate-200 pb-5">
           <span className="inline-block rounded-full bg-indigo-100 px-3 py-1 text-xs font-semibold text-indigo-800">
-            Panel Admin — Fase 2 (Ekstraksi Multimodal & Anti-Salin Persis)
+            Panel Kurasi Admin — Pengelolaan Regulasi & Bank Soal
           </span>
           <h1 className="mt-2 text-2xl font-bold text-slate-900 sm:text-3xl">
             Studio Kurasi Regulasi & Bank Soal SKD
           </h1>
           <p className="mt-1 text-sm text-slate-600">
-            Ekstraksi otomatis dokumen PDF regulasi resmi dan pindaian soal
-            menggunakan Adaptor AI Terpadu (bebas ganti penyedia di{" "}
-            <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">
-              .env
-            </code>
-            ).
+            Unggah dokumen PDF regulasi resmi atau pindaian halaman soal untuk
+            disusun otomatis menjadi butir soal siap uji berbahasa Indonesia
+            baku.
           </p>
         </div>
-        <Link
-          href="/"
-          className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50"
-        >
-          ← Kembali ke Beranda
-        </Link>
-      </div>
 
       {/* BAGIAN 1: EKSTRAKSI DOKUMEN REGULASI */}
       <section className="mb-10 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
           <div>
             <h2 className="text-lg font-bold text-slate-900">
-              1. Ekstraksi Dokumen Regulasi Resmi (PDF → Tabel{" "}
-              <code className="text-sm text-blue-700">regulations</code>)
+              1. Impor Dokumen Regulasi Resmi (PDF)
             </h2>
             <p className="text-sm text-slate-600">
               Unggah dokumen PDF Keputusan Menteri PANRB untuk diekstrak menjadi
@@ -287,13 +276,12 @@ export default function HalamanStudioKurasiSoal() {
       {/* BAGIAN 2: UNGGAH PINDAIAN SOAL MULTIMODAL */}
       <section className="mb-8 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <h2 className="text-lg font-bold text-slate-900">
-          2. Ekstraksi & Parafrase Pindaian Soal Multimodal (Vision AI)
+          2. Pindai & Susun Soal dari Buku Cetak atau PDF (Cerdas AI)
         </h2>
         <p className="mt-1 text-sm text-slate-600">
-          Unggah gambar pindaian buku cetak (PNG/JPG) atau halaman PDF soal.
-          Sistem otomatis mengklasifikasikan kisi-kisi resmi Kepmenpan-RB
-          321/2024, memotong gambar figural (jika ada), serta melakukan
-          parafrase semantik agar bebas hak cipta.
+          Unggah foto atau pindaian halaman soal (PNG/JPG/PDF). Sistem otomatis
+          mengelompokkan kisi-kisi resmi Kepmenpan-RB 321/2024, memotong gambar
+          ilustrasi soal (jika ada), serta menyusun ulang kalimat secara orisinal.
         </p>
 
         <form
@@ -420,10 +408,10 @@ export default function HalamanStudioKurasiSoal() {
                 </span>
                 <div className="flex items-center gap-2">
                   <span className="rounded bg-slate-200 px-2 py-0.5 text-xs font-medium text-slate-700">
-                    Pencarian RAG:{" "}
+                    Indeks Materi:{" "}
                     {soalAktif.metode_pencarian_rag === "pgvector_768"
-                      ? "Vektor 768 Dimensi"
-                      : "Teks Penuh Bahasa Indonesia (tsvector)"}
+                      ? "Pencarian Semantik Aktif"
+                      : "Pencarian Teks Indonesia Aktif"}
                   </span>
                   <span
                     className={`rounded px-2.5 py-0.5 text-xs font-bold uppercase ${
@@ -602,6 +590,7 @@ export default function HalamanStudioKurasiSoal() {
           </div>
         )}
       </section>
-    </main>
+      </main>
+    </AdminPortalShell>
   );
 }

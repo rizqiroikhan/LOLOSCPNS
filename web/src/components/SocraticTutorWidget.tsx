@@ -18,11 +18,10 @@ export default function WidgetTutorSokratik({
   const [terbuka, setTerbuka] = useState<boolean>(false);
   const [pertanyaanInput, setPertanyaanInput] = useState<string>("");
   const [sedangMemuat, setSedangMemuat] = useState<boolean>(false);
-  const [infoModel, setInfoModel] = useState<string>("AI_CHAT_MODEL (.env)");
   const [riwayatPesan, setRiwayatPesan] = useState<PesanDiskusi[]>([
     {
       pengirim: "tutor",
-      teks: `Halo! Saya Tutor AI Sokratik LOLOS CPNS. Mari kita diskusikan soal ${soal.category} (${soal.sub_topic}) ini secara bertahap. Bagian mana dari soal atau pilihan jawaban yang menurut Anda paling membingungkan?`,
+      teks: `Halo! Saya Tutor AI Pembimbing LOLOS CPNS. Mari kita bahas soal ${soal.category} (${soal.sub_topic}) ini langkah demi langkah. Bagian mana dari soal atau pilihan jawaban yang ingin Anda pahami lebih dalam?`,
     },
   ]);
 
@@ -54,9 +53,6 @@ export default function WidgetTutorSokratik({
       });
 
       const data = await res.json();
-      if (data.model_ai) {
-        setInfoModel(`${data.penyedia_ai} — ${data.model_ai}`);
-      }
 
       setRiwayatPesan((sebelumnya) => [
         ...sebelumnya,
@@ -88,17 +84,17 @@ export default function WidgetTutorSokratik({
           onClick={() => setTerbuka(true)}
           className="inline-flex items-center gap-2 rounded-lg border border-indigo-200 bg-indigo-50 px-3.5 py-2 text-xs font-bold text-indigo-800 transition hover:bg-indigo-100"
         >
-          <span>💬 Diskusi dengan Tutor AI Sokratik (RAG)</span>
+          <span>💬 Tanya Tutor AI Pembimbing</span>
         </button>
       ) : (
         <div className="rounded-xl border border-indigo-200 bg-indigo-50/40 p-4">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2 border-b border-indigo-100 pb-2.5">
-            <div>
-              <span className="rounded bg-indigo-600 px-2 py-0.5 text-[11px] font-bold text-white">
-                TUTOR AI SOKRATIK (BERBASIS RAG)
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="rounded bg-indigo-600 px-2.5 py-0.5 text-[11px] font-bold text-white">
+                TUTOR AI PEMBIMBING
               </span>
-              <span className="ml-2 text-xs font-medium text-slate-600">
-                Adaptor Aktif: <strong>{infoModel}</strong>
+              <span className="text-xs font-medium text-slate-600">
+                Siap membimbing langkah demi langkah
               </span>
             </div>
             <button
@@ -110,7 +106,7 @@ export default function WidgetTutorSokratik({
             </button>
           </div>
 
-          {/* Riwayat Percakapan Sokratik */}
+          {/* Riwayat Percakapan Tutor AI */}
           <div className="mb-3 max-h-64 space-y-2.5 overflow-y-auto pr-1 text-xs sm:text-sm">
             {riwayatPesan.map((pesan, idx) => (
               <div
@@ -124,15 +120,14 @@ export default function WidgetTutorSokratik({
                 <span className="mb-1 block text-[10px] font-bold uppercase opacity-75">
                   {pesan.pengirim === "peserta"
                     ? "Anda (Peserta)"
-                    : "Tutor AI Sokratik"}
+                    : "Tutor AI Pembimbing"}
                 </span>
                 <p className="whitespace-pre-line">{pesan.teks}</p>
               </div>
             ))}
             {sedangMemuat && (
               <div className="rounded-xl border border-indigo-100 bg-white p-3 text-xs italic text-slate-500">
-                Tutor AI sedang menyusun pertanyaan pemantik dan penjelasan
-                kontekstual...
+                Tutor AI sedang menyiapkan penjelasan langkah demi langkah untuk Anda...
               </div>
             )}
           </div>

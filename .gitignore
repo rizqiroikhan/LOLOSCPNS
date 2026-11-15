@@ -36,6 +36,10 @@ env/
 # Testing & coverage
 /web/coverage/
 
+# Local runtime admin credentials store (Jangan di-commit ke Git)
+/web/.data/
+*.admin-store.json
+
 # Misc
 .DS_Store
 *.pem

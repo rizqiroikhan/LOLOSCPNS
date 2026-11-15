@@ -1,10 +1,22 @@
 import { NextResponse } from "next/server";
+import { ekstrakSesiDariHeaderCookie } from "@/lib/admin-auth";
 import { panggilChatAI } from "@/lib/ai-client";
 import { uraiJsonAI } from "@/lib/ingestion-pipeline";
 import { REGULASI_SKD_321_2024 } from "@/lib/scoring-engine";
 import { buatKlienSupabaseServer } from "@/lib/supabase";
 
 export async function POST(request: Request) {
+  const sesiAdmin = ekstrakSesiDariHeaderCookie(request.headers.get("cookie"));
+  if (!sesiAdmin) {
+    return NextResponse.json(
+      {
+        status: "gagal",
+        pesan: "Silakan masuk ke Menu Admin terlebih dahulu untuk mengimpor regulasi.",
+      },
+      { status: 401 }
+    );
+  }
+
   try {
     const formData = await request.formData();
     const berkas = formData.get("berkas") as File | null;
@@ -89,8 +101,8 @@ export async function POST(request: Request) {
     return NextResponse.json({
       status: "berhasil",
       pesan: modeDemonstrasi
-        ? `Berkas '${berkas.name}' berhasil diproses menjadi struktur JSON Kepmenpan-RB Nomor 321 Tahun 2024.`
-        : `Dokumen regulasi '${berkas.name}' berhasil diekstrak oleh AI menjadi struktur JSON resmi.`,
+        ? `Berkas '${berkas.name}' berhasil diproses sesuai acuan Kepmenpan-RB Nomor 321 Tahun 2024.`
+        : `Dokumen regulasi '${berkas.name}' berhasil diekstrak menjadi aturan seleksi resmi.`,
       tersimpan_di_basis_data: tersimpanDiBasisData,
       regulasi: regulasiHasil,
     });

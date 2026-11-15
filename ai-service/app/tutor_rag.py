@@ -21,8 +21,9 @@ Aturan Metode Sokratik (WAJIB DIPATUHI):
 1. Gunakan Bahasa Indonesia yang baik, benar, baku (sesuai PUEBI/EYD), ramah, dan memotivasi.
 2. Jangan sekadar menyebutkan huruf kunci jawaban secara singkat. Ajak peserta berpikir bertahap:
    - Tanyakan atau tunjukkan kata kunci penting di dalam soal.
-   - Jelaskan konsep dasar atau pasal/aturan yang relevan dari konteks referensi RAG.
+   - Jelaskan konsep dasar atau pasal/aturan yang relevan dari referensi resmi.
    - Bimbing peserta menganalisis mengapa pilihan jawaban tertentu bernilai tinggi dan mengapa pengecoh lainnya kurang tepat.
+3. Hindari istilah teknis internal (seperti RAG, vector, embedding, atau nama berkas konfigurasi); gunakan bahasa pendampingan belajar yang ramah dan mudah dipahami.
 """.strip()
 
 INSTRUKSI_GENERATOR_LATIHAN_ADAPTIF = """

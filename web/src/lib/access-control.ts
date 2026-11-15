@@ -1,12 +1,12 @@
 /**
- * Modul Kendali Akses Paket (Freemium Gate), Pembatasan Laju Permintaan AI (Rate Limiting),
- * dan Integrasi Gerbang Pembayaran (Midtrans / Mayar) — LOLOS CPNS.
+ * Modul Kendali Akses Paket (Freemium Gate) & Pembatasan Laju Permintaan AI (Rate Limiting)
+ * — LOLOS CPNS.
  *
- * Seluruh status transaksi, pesan kendali akses, dan peringatan batas kuota
- * wajib menggunakan Bahasa Indonesia yang baik dan benar.
+ * Seluruh fungsi pada modul ini bersifat isomorfik (aman dijalankan di server maupun
+ * komponen peramban `"use client"` tanpa ketergantungan modul bawaan Node.js).
+ * Fungsi verifikasi kriptografi webhook pembayaran berada di `./payment-security.ts`.
  */
 
-import crypto from "node:crypto";
 import type { TahapPaketSimulasi } from "../types/database.ts";
 
 export type TingkatLanggananPeserta =
@@ -53,7 +53,7 @@ export const DAFTAR_PAKET_LANGGANAN: Record<string, PaketLanggananResmi> = {
     fitur_utama: [
       "1 Paket Simulasi CAT SKD Lengkap (110 Soal)",
       "Evaluasi Deterministik 7 Kategori Formasi",
-      "Kuota 5 Pertanyaan Tutor AI Sokratik per Hari",
+      "Kuota 5 Tanya Jawab Tutor AI per Hari",
     ],
   },
   "paket-intensif-skd": {
@@ -69,7 +69,7 @@ export const DAFTAR_PAKET_LANGGANAN: Record<string, PaketLanggananResmi> = {
     fitur_utama: [
       "Buka Seluruh Paket Simulasi Akbar CAT SKD (110 Soal)",
       "Analisis Kesenjangan Nilai per Sub-Topik Kisi-Kisi",
-      "Kuota 100 Pertanyaan Tutor AI Sokratik per Hari",
+      "Kuota 100 Tanya Jawab Tutor AI per Hari",
       "Latihan Perbaikan Adaptif Tanpa Batas",
     ],
   },
@@ -86,7 +86,7 @@ export const DAFTAR_PAKET_LANGGANAN: Record<string, PaketLanggananResmi> = {
     fitur_utama: [
       "Seluruh Fitur Paket Intensif SKD",
       "Akses Modul Lanjutan Seleksi Kompetensi Bidang (SKB)",
-      "Kuota Prioritas 250 Diskusi Tutor AI Sokratik per Hari",
+      "Kuota Prioritas 250 Tanya Jawab Tutor AI per Hari",
       "Simulasi Wawancara & Psikotes Jabatan",
     ],
   },
@@ -188,7 +188,7 @@ export function periksaKuotaTutorAI(parameter: {
   const diizinkan = jumlahPemakaianHariIni < batasHarian;
 
   const pesanKuota = diizinkan
-    ? `Sisa kuota diskusi Tutor AI Sokratik Anda hari ini: ${sisaKuota} dari ${batasHarian} pertanyaan.`
+    ? `Sisa kuota tanya jawab Tutor AI Anda hari ini: ${sisaKuota} dari ${batasHarian} pertanyaan.`
     : `Kuota harian diskusi Tutor AI untuk akun ${
         tingkatLangganan === "gratis" ? "Gratis (5 pertanyaan/hari)" : tingkatLangganan
       } telah habis. Silakan tingkatkan ke Paket Intensif SKD atau Paket Terpadu untuk membuka kuota diskusi penuh.`;
@@ -266,102 +266,5 @@ export function periksaBatasLajuPermintaan(parameter: {
       Math.ceil((dataLama.waktuResetMs - sekarang) / 1000)
     ),
     pesanPeringatan: null,
-  };
-}
-
-// ==============================================================================
-// INTEGRASI GERBANG PEMBAYARAN (MIDTRANS / MAYAR WEBHOOK & SIGNATURE)
-// ==============================================================================
-export function buatSignatureMidtrans(parameter: {
-  orderId: string;
-  statusCode: string;
-  grossAmount: string;
-  serverKey: string;
-}): string {
-  const gabungan = `${parameter.orderId}${parameter.statusCode}${parameter.grossAmount}${parameter.serverKey}`;
-  return crypto.createHash("sha512").update(gabungan).digest("hex");
-}
-
-export function verifikasiWebhookPembayaran(payload: {
-  order_id: string;
-  status_code?: string;
-  gross_amount?: string;
-  signature_key?: string;
-  transaction_status: string;
-  paket_id?: string;
-  server_key_opsional?: string;
-}): {
-  sah: boolean;
-  statusTransaksi: StatusTransaksiPembayaran;
-  tingkatAktifBaru: TingkatLanggananPeserta | null;
-  pesanNotifikasi: string;
-} {
-  const serverKey =
-    payload.server_key_opsional ||
-    process.env.MIDTRANS_SERVER_KEY ||
-    "kunci_sandbox_lolos_cpns";
-
-  if (payload.signature_key && payload.status_code && payload.gross_amount) {
-    const harapanSignature = buatSignatureMidtrans({
-      orderId: payload.order_id,
-      statusCode: payload.status_code,
-      grossAmount: payload.gross_amount,
-      serverKey,
-    });
-
-    if (payload.signature_key !== harapanSignature) {
-      return {
-        sah: false,
-        statusTransaksi: "dibatalkan",
-        tingkatAktifBaru: null,
-        pesanNotifikasi:
-          "Tanda tangan keamanan (signature key) notifikasi pembayaran tidak sah.",
-      };
-    }
-  }
-
-  const statusMentah = (payload.transaction_status || "").toLowerCase().trim();
-  const idPaket = payload.paket_id || "paket-intensif-skd";
-  const paket =
-    DAFTAR_PAKET_LANGGANAN[idPaket] ||
-    DAFTAR_PAKET_LANGGANAN["paket-intensif-skd"];
-
-  if (
-    statusMentah === "settlement" ||
-    statusMentah === "capture" ||
-    statusMentah === "paid" ||
-    statusMentah === "lunas"
-  ) {
-    return {
-      sah: true,
-      statusTransaksi: "lunas",
-      tingkatAktifBaru: paket.kode_tingkat,
-      pesanNotifikasi: `Pembayaran pesanan ${payload.order_id} telah LUNAS. Akses "${paket.judul}" kini telah aktif sepenuhnya.`,
-    };
-  }
-
-  if (statusMentah === "pending" || statusMentah === "menunggu_pembayaran") {
-    return {
-      sah: true,
-      statusTransaksi: "menunggu_pembayaran",
-      tingkatAktifBaru: null,
-      pesanNotifikasi: `Pesanan ${payload.order_id} sedang menunggu penyelesaian pembayaran melalui QRIS / Akun Virtual.`,
-    };
-  }
-
-  if (statusMentah === "expire" || statusMentah === "kedaluwarsa") {
-    return {
-      sah: true,
-      statusTransaksi: "kedaluwarsa",
-      tingkatAktifBaru: null,
-      pesanNotifikasi: `Batas waktu pembayaran untuk pesanan ${payload.order_id} telah berakhir.`,
-    };
-  }
-
-  return {
-    sah: true,
-    statusTransaksi: "dibatalkan",
-    tingkatAktifBaru: null,
-    pesanNotifikasi: `Transaksi pesanan ${payload.order_id} dibatalkan.`,
   };
 }

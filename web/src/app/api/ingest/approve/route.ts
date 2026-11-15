@@ -1,9 +1,21 @@
 import { NextResponse } from "next/server";
+import { ekstrakSesiDariHeaderCookie } from "@/lib/admin-auth";
 import { buatEmbeddingTeks } from "@/lib/ai-client";
 import { normalisasiButirSoalEkstraksi } from "@/lib/ingestion-pipeline";
 import { buatKlienSupabaseServer } from "@/lib/supabase";
 
 export async function POST(request: Request) {
+  const sesiAdmin = ekstrakSesiDariHeaderCookie(request.headers.get("cookie"));
+  if (!sesiAdmin) {
+    return NextResponse.json(
+      {
+        status: "gagal",
+        pesan: "Silakan masuk ke Menu Admin terlebih dahulu untuk menyetujui soal.",
+      },
+      { status: 401 }
+    );
+  }
+
   try {
     const badan = (await request.json()) as Record<string, unknown>;
     const soalNormal = normalisasiButirSoalEkstraksi(badan);

@@ -19,20 +19,17 @@ export default function HalamanUtama() {
     <div className="min-h-screen bg-slate-50 text-slate-900">
       {/* Bilah Navigasi Atas */}
       <nav className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-          <div className="flex items-center gap-3">
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-700 text-sm font-black text-white">
-              LC
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-3">
+          <Link href="/" className="flex items-center gap-3">
+            <img
+              src="/logo-lolos-cpns.jpg"
+              alt="Logo LOLOS CPNS"
+              className="h-10 w-auto object-contain mix-blend-multiply sm:h-11"
+            />
+            <span className="hidden rounded bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-700 lg:inline-block">
+              Kepmenpan-RB No. 321 Tahun 2024
             </span>
-            <div>
-              <span className="text-lg font-extrabold tracking-tight text-slate-900">
-                LOLOS CPNS
-              </span>
-              <span className="ml-2 hidden rounded bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-700 sm:inline-block">
-                Kepmenpan-RB No. 321 Tahun 2024
-              </span>
-            </div>
-          </div>
+          </Link>
 
           <div className="hidden items-center gap-6 text-sm font-medium text-slate-600 md:flex">
             <a href="#kuis-singkat" className="hover:text-blue-700">
@@ -50,12 +47,15 @@ export default function HalamanUtama() {
             <Link href="/pembayaran" className="hover:text-blue-700">
               Aktivasi Paket
             </Link>
-            <Link href="/admin/kurasi-soal" className="hover:text-indigo-700">
-              Studio Kurasi Admin
-            </Link>
           </div>
 
           <div className="flex items-center gap-2.5">
+            <Link
+              href="/admin"
+              className="rounded-xl border border-indigo-200 bg-indigo-50 px-3.5 py-2 text-xs font-bold text-indigo-800 shadow-sm transition hover:bg-indigo-100 sm:text-sm"
+            >
+              Menu Admin
+            </Link>
             <Link
               href="/simulasi/skd/paket-perdana-gratis"
               className="rounded-xl bg-blue-700 px-4 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-blue-800 sm:text-sm"
@@ -72,12 +72,12 @@ export default function HalamanUtama() {
           <div className="grid items-center gap-10 lg:grid-cols-12">
             <div className="lg:col-span-7">
               <span className="inline-block rounded-full border border-blue-200 bg-blue-50 px-3.5 py-1 text-xs font-bold text-blue-800">
-                Platform Simulasi CAT CPNS Berbasis Rekayasa AI & Regulasi Resmi
+                Platform Simulasi CAT CPNS Berbasis AI & Regulasi Resmi
               </span>
               <h1 className="mt-4 text-3xl font-extrabold leading-tight tracking-tight text-slate-900 sm:text-5xl">
                 Taklukkan Nilai Ambang Batas{" "}
                 <span className="text-blue-700">SKD CPNS</span> dengan Presisi
-                Deterministik & Tutor AI
+                & Tutor AI
               </h1>
               <p className="mt-4 text-base leading-relaxed text-slate-600 sm:text-lg">
                 Dirancang 100% mengacu pada{" "}
@@ -282,7 +282,7 @@ export default function HalamanUtama() {
               <p className="mt-2 text-sm leading-relaxed text-slate-600">
                 Berlatih dengan Simulator CAT standar BKN (hitung mundur waktu
                 presisi & penyimpanan otomatis), analisis sub-topik terlemah,
-                serta diskusi bertahap bersama Tutor AI Sokratik.
+                serta pendampingan langkah demi langkah bersama Tutor AI.
               </p>
             </div>
 
@@ -307,11 +307,11 @@ export default function HalamanUtama() {
       <section id="perbandingan" className="mx-auto max-w-6xl px-6 py-14">
         <div className="mb-8 text-center">
           <h2 className="text-2xl font-extrabold text-slate-900 sm:text-3xl">
-            Mengapa Memilih Platform Rekayasa AI LOLOS CPNS?
+            Mengapa Memilih Platform LOLOS CPNS?
           </h2>
           <p className="mt-2 text-sm text-slate-600">
-            Perbandingan metode belajar konvensional dengan sistem evaluasi
-            deterministik dan kurasi AI kami.
+            Perbandingan metode belajar konvensional dengan sistem penilaian
+            resmi dan bimbingan belajar cerdas kami.
           </p>
         </div>
 
@@ -337,7 +337,7 @@ export default function HalamanUtama() {
                   Hanya menghitung skor umum tanpa membedakan 7 jenis formasi
                 </td>
                 <td className="px-5 py-3.5 font-semibold text-emerald-700">
-                  Deterministik 100% untuk 7 Kategori Formasi (Kepmenpan-RB
+                  Akurat 100% untuk 7 Kategori Formasi (Kepmenpan-RB
                   321/2024)
                 </td>
               </tr>
@@ -360,8 +360,7 @@ export default function HalamanUtama() {
                   Soal statis dan berulang dari tahun ke tahun
                 </td>
                 <td className="px-5 py-3.5 font-semibold text-emerald-700">
-                  Bank Soal Terkurasi & Parafrase Semantik AI Berbahasa
-                  Indonesia Baku
+                  Bank Soal Terkurasi & Pembahasan Lengkap Berbahasa Indonesia Baku
                 </td>
               </tr>
               <tr>
@@ -412,7 +411,7 @@ export default function HalamanUtama() {
                 </p>
                 <ul className="mt-5 space-y-2.5 text-sm text-slate-700">
                   <li>✓ 1 Paket Simulasi CAT SKD Lengkap (110 Soal)</li>
-                  <li>✓ Evaluasi Deterministik 7 Kategori Formasi</li>
+                  <li>✓ Evaluasi Resmi 7 Kategori Formasi</li>
                   <li>✓ Dukungan Durasi Disabilitas Sensorik Netra (130 Menit)</li>
                   <li>✓ Pembahasan Lengkap Berbahasa Indonesia Baku</li>
                 </ul>
@@ -440,7 +439,7 @@ export default function HalamanUtama() {
                 <ul className="mt-5 space-y-2.5 text-sm text-slate-700">
                   <li>✓ Semua Paket Simulasi Akbar CAT SKD (110 Soal)</li>
                   <li>✓ Analisis Kesenjangan Nilai per Sub-Topik Kisi-Kisi</li>
-                  <li>✓ Diskusi Interaktif Bersama Tutor AI Sokratik</li>
+                  <li>✓ Tanya Jawab Interaktif Bersama Tutor AI Pembimbing</li>
                   <li>✓ Latihan Perbaikan Adaptif pada Materi Terlemah</li>
                 </ul>
               </div>
@@ -487,7 +486,7 @@ export default function HalamanUtama() {
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-6">
           <p>
             © 2026 <strong>LOLOS CPNS</strong> — Platform Persiapan & Simulasi
-            CAT CPNS Berbasis Rekayasa AI.
+            CAT CPNS Berbasis AI.
           </p>
           <p>
             Acuan Regulasi Resmi: Keputusan Menteri PANRB Nomor 321 Tahun 2024.

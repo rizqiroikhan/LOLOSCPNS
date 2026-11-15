@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import {
@@ -9,7 +9,7 @@ import {
 } from "@/lib/cat-question-bank";
 import {
   evaluasiKelulusanSKD,
-  HasilEvaluasiSKD,
+  type HasilEvaluasiSKD,
   hitungDurasiUjianSKD,
   hitungSkorDariJawaban,
   REGULASI_SKD_321_2024,
@@ -33,7 +33,7 @@ import type {
 type TahapHalamanSimulasi = "persiapan" | "ujian_berlangsung" | "hasil_ujian";
 type FilterNavigasiSubtes = "SEMUA" | KategoriSubtesSKD;
 
-export default function HalamanSimulatorCATSKD() {
+function KontenSimulatorCATSKD() {
   const params = useParams<{ id: string }>();
   const searchParams = useSearchParams();
   const idPaket = params?.id || "paket-perdana-gratis";
@@ -300,7 +300,7 @@ export default function HalamanSimulatorCATSKD() {
             Paket Simulasi Ini Memerlukan Langganan Aktif
           </h1>
           <p className="mt-2 text-sm leading-relaxed text-slate-700">
-            {hasilEvaluasiAkses.alasan}
+            {hasilEvaluasiAkses.pesanAkses}
           </p>
 
           <div className="mt-6 rounded-xl border border-slate-200 bg-slate-50 p-4 text-xs text-slate-700">
@@ -312,10 +312,10 @@ export default function HalamanSimulatorCATSKD() {
                 ✓ Akses penuh ke seluruh Paket Simulasi Akbar CAT SKD (110 Soal)
               </li>
               <li>
-                ✓ Kuota Diskusi Tutor AI Sokratik tanpa batas harian (3 kali/hari pada akun Gratis)
+                ✓ Kuota tanya jawab Tutor AI berkapasitas besar (5 pertanyaan/hari pada akun Gratis)
               </li>
               <li>
-                ✓ Latihan Perbaikan Adaptif dinamis pada 3 sub-topik terlemah Anda
+                ✓ Latihan penguatan materi otomatis pada 3 sub-topik terlemah Anda
               </li>
             </ul>
           </div>
@@ -345,13 +345,22 @@ export default function HalamanSimulatorCATSKD() {
   if (tahapHalaman === "persiapan") {
     return (
       <main className="mx-auto max-w-4xl px-6 py-10">
-        <div className="mb-6 flex items-center justify-between">
-          <Link
-            href="/"
-            className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-          >
-            ← Kembali ke Halaman Utama
-          </Link>
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <Link href="/" className="inline-flex items-center">
+              <img
+                src="/logo-lolos-cpns.jpg"
+                alt="Logo LOLOS CPNS"
+                className="h-9 w-auto object-contain mix-blend-multiply"
+              />
+            </Link>
+            <Link
+              href="/"
+              className="rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+            >
+              ← Beranda
+            </Link>
+          </div>
           <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-bold text-blue-800">
             Standar Resmi CAT BKN — Kepmenpan-RB No. 321 Tahun 2024
           </span>
@@ -774,7 +783,7 @@ export default function HalamanSimulatorCATSKD() {
           <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200 pb-5">
             <div>
               <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                Hasil Evaluasi Deterministik (Kepmenpan-RB Nomor 321 Tahun 2024)
+                Hasil Evaluasi Kelulusan Resmi (Kepmenpan-RB Nomor 321 Tahun 2024)
               </span>
               <h1 className="mt-1 text-2xl font-extrabold text-slate-900 sm:text-3xl">
                 {namaPeserta} — {hasilEvaluasiAkhir.namaKategoriFormasi}
@@ -987,15 +996,15 @@ export default function HalamanSimulatorCATSKD() {
         />
       </section>
 
-      {/* BAGIAN PEMBAHASAN SOAL & TUTOR AI SOKRATIK */}
+      {/* BAGIAN PEMBAHASAN SOAL & TUTOR AI PEMBIMBING */}
       <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-md sm:p-8">
         <h2 className="text-xl font-extrabold text-slate-900 sm:text-2xl">
-          Pembahasan Lengkap & Diskusi Tutor AI Sokratik
+          Pembahasan Lengkap & Tanya Tutor AI
         </h2>
         <p className="mt-1 text-xs text-slate-600 sm:text-sm">
           Pelajari pembahasan resmi pada setiap butir soal atau klik tombol{" "}
-          <strong>Diskusi dengan Tutor AI Sokratik</strong> untuk dibimbing
-          secara bertahap.
+          <strong>Tanya Tutor AI Pembimbing</strong> untuk dibimbing langkah
+          demi langkah.
         </p>
 
         <div className="mt-6 space-y-5">
@@ -1038,5 +1047,19 @@ export default function HalamanSimulatorCATSKD() {
         </div>
       </section>
     </main>
+  );
+}
+
+export default function HalamanSimulatorCATSKD() {
+  return (
+    <Suspense
+      fallback={
+        <div className="mx-auto max-w-4xl px-6 py-12 text-center text-sm text-slate-600">
+          Memuat ruang simulasi CAT SKD LOLOS CPNS...
+        </div>
+      }
+    >
+      <KontenSimulatorCATSKD />
+    </Suspense>
   );
 }

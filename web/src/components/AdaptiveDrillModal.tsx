@@ -76,14 +76,14 @@ export default function PanelLatihanPerbaikanAdaptif({
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <span className="inline-block rounded-md bg-indigo-600 px-2.5 py-1 text-xs font-bold text-white">
-            FITUR LATIHAN PERBAIKAN ADAPTIF (DINAMIS AI)
+            LATIHAN PENGUATAN MATERI (CERDAS AI)
           </span>
           <h3 className="mt-2 text-xl font-extrabold text-slate-900">
             Target Penguatan: {kategoriAwal} — {subTopikAwal}
           </h3>
           <p className="mt-1 text-xs text-slate-600 sm:text-sm">
-            Sistem men-generate 5–10 soal variasi baru secara dinamis khusus
-            pada sub-topik kisi-kisi resmi terlemah Anda.
+            Berlatih 5–10 soal variasi baru yang disusun otomatis khusus untuk
+            memperkuat materi terlemah Anda.
           </p>
         </div>
 

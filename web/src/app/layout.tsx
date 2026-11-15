@@ -8,7 +8,7 @@ export const metadata: Metadata = {
     template: "%s | LOLOS CPNS",
   },
   description:
-    "Platform persiapan dan simulasi Computer Assisted Test (CAT) Seleksi Kompetensi Dasar (SKD) CPNS mengacu 100% pada Keputusan Menteri PANRB Nomor 321 Tahun 2024. Mendukung evaluasi deterministik 7 kategori formasi, aksesibilitas disabilitas sensorik netra (130 menit), dan Tutor AI Sokratik.",
+    "Platform persiapan dan simulasi Computer Assisted Test (CAT) Seleksi Kompetensi Dasar (SKD) CPNS mengacu 100% pada Keputusan Menteri PANRB Nomor 321 Tahun 2024. Mendukung penilaian akurat 7 kategori formasi, aksesibilitas disabilitas sensorik netra (130 menit), dan Tutor AI Pembimbing.",
   keywords: [
     "Simulasi CAT CPNS",
     "Tryout SKD CPNS",
@@ -18,9 +18,13 @@ export const metadata: Metadata = {
     "Tutor AI CPNS",
     "CAT BKN Simulasi",
   ],
-  authors: [{ name: "Tim Rekayasa AI LOLOS CPNS" }],
+  authors: [{ name: "Tim LOLOS CPNS" }],
   creator: "LOLOS CPNS",
   publisher: "LOLOS CPNS",
+  icons: {
+    icon: "/logo-lolos-cpns.jpg",
+    apple: "/logo-lolos-cpns.jpg",
+  },
   alternates: {
     canonical: "/",
   },
@@ -29,9 +33,9 @@ export const metadata: Metadata = {
     locale: "id_ID",
     url: "https://loloscpns.id",
     siteName: "LOLOS CPNS",
-    title: "LOLOS CPNS — Taklukkan Nilai Ambang Batas SKD CPNS dengan Presisi AI",
+    title: "LOLOS CPNS — Taklukkan Nilai Ambang Batas SKD CPNS dengan Presisi & Tutor AI",
     description:
-      "Simulasi CAT SKD 110 soal standar BKN, evaluasi deterministik 7 formasi Kepmenpan-RB No. 321 Tahun 2024, Analisis Kesenjangan Nilai, serta Tutor AI Sokratik.",
+      "Simulasi CAT SKD 110 soal standar BKN, evaluasi akurat 7 formasi Kepmenpan-RB No. 321 Tahun 2024, Analisis Kesenjangan Nilai, serta Tutor AI Pembimbing.",
   },
   robots: {
     index: true,

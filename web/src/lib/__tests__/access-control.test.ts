@@ -1,12 +1,14 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
-  buatSignatureMidtrans,
   evaluasiAksesPaketSimulasi,
   periksaBatasLajuPermintaan,
   periksaKuotaTutorAI,
-  verifikasiWebhookPembayaran,
 } from "../access-control.ts";
+import {
+  buatSignatureMidtrans,
+  verifikasiWebhookPembayaran,
+} from "../payment-security.ts";
 
 describe("Monetisasi, Kendali Akses Paket, & Pembatasan Laju AI (Fase 5)", () => {
   it("mengizinkan akun gratis mengakses paket perdana tetapi mengunci paket berbayar sebelum pembayaran", () => {

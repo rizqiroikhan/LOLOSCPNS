@@ -1,12 +1,12 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import {
   DAFTAR_PAKET_LANGGANAN,
-  MetodePembayaranResmi,
-  TingkatLanggananPeserta,
+  type MetodePembayaranResmi,
+  type TingkatLanggananPeserta,
 } from "@/lib/access-control";
 
 interface DataPesananAktif {
@@ -21,7 +21,7 @@ interface DataPesananAktif {
   nomor_akun_virtual: string;
 }
 
-export default function HalamanPembayaranPaket() {
+function KontenPembayaranPaket() {
   const searchParams = useSearchParams();
   const paketAwal = searchParams?.get("paket") || "paket-intensif-skd";
 
@@ -134,9 +134,18 @@ export default function HalamanPembayaranPaket() {
     <main className="mx-auto max-w-5xl px-6 py-10">
       <div className="mb-8 flex flex-wrap items-center justify-between gap-4 border-b border-slate-200 pb-5">
         <div>
-          <span className="inline-block rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-800">
-            Gerbang Pembayaran Resmi (Midtrans / Mayar QRIS & Akun Virtual)
-          </span>
+          <div className="mb-2 flex items-center gap-3">
+            <Link href="/" className="inline-flex items-center">
+              <img
+                src="/logo-lolos-cpns.jpg"
+                alt="Logo LOLOS CPNS"
+                className="h-9 w-auto object-contain mix-blend-multiply"
+              />
+            </Link>
+            <span className="inline-block rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-800">
+              Pembayaran Resmi (QRIS & Akun Virtual Bank)
+            </span>
+          </div>
           <h1 className="mt-2 text-2xl font-extrabold text-slate-900 sm:text-3xl">
             Aktivasi Paket Belajar & Simulasi Penuh LOLOS CPNS
           </h1>
@@ -352,5 +361,19 @@ export default function HalamanPembayaranPaket() {
         </aside>
       </div>
     </main>
+  );
+}
+
+export default function HalamanPembayaranPaket() {
+  return (
+    <Suspense
+      fallback={
+        <div className="mx-auto max-w-5xl px-6 py-12 text-center text-sm text-slate-600">
+          Memuat halaman pembayaran LOLOS CPNS...
+        </div>
+      }
+    >
+      <KontenPembayaranPaket />
+    </Suspense>
   );
 }

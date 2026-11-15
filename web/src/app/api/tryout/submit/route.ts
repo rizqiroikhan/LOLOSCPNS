@@ -51,7 +51,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       status: "berhasil",
-      pesan: "Hasil simulasi CAT SKD berhasil dihitung secara deterministik.",
+      pesan: "Hasil simulasi CAT SKD berhasil dihitung secara resmi.",
       tersimpan_di_basis_data: tersimpanDiBasisData,
       hasil_skor: hasilSkor,
       evaluasi,

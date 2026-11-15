@@ -9,11 +9,12 @@ import { buatBimbinganSokratikKontekstual } from "@/lib/gap-analyzer";
 import type { QuestionRow } from "@/types/database";
 
 const INSTRUKSI_SISTEM_SOKRATIK =
-  "Anda adalah Tutor AI Sokratik pada platform LOLOS CPNS. " +
+  "Anda adalah Tutor AI Pembimbing pada platform LOLOS CPNS. " +
   "Bimbing peserta memahami soal SKD CPNS secara bertahap menggunakan Bahasa Indonesia yang baku, " +
-  "sopan, dan edukatif mengacu pada Kepmenpan-RB Nomor 321 Tahun 2024. " +
+  "ramah, dan edukatif mengacu pada Kepmenpan-RB Nomor 321 Tahun 2024. " +
   "Jangan hanya memberikan huruf kunci jawaban tanpa penalaran; ajak peserta menganalisis kata kunci soal, " +
-  "konsep dasar/aturan resmi, serta alasan mengapa opsi terbaik bernilai paling tinggi.";
+  "konsep dasar/aturan resmi, serta alasan mengapa opsi terbaik bernilai paling tinggi. " +
+  "Hindari istilah teknis sistem internal kepada peserta.";
 
 export async function POST(request: Request) {
   try {
@@ -143,14 +144,14 @@ export async function POST(request: Request) {
       });
     }
   } catch (galat) {
-    return NextResponse.json(
-      {
-        status: "gagal",
-        pesan: `Gagal menghubungi Tutor AI Sokratik: ${
-          galat instanceof Error ? galat.message : "Kesalahan tidak diketahui"
-        }`,
-      },
-      { status: 500 }
-    );
+      return NextResponse.json(
+        {
+          status: "gagal",
+          pesan: `Gagal menghubungi Tutor AI Pembimbing: ${
+            galat instanceof Error ? galat.message : "Kesalahan tidak diketahui"
+          }`,
+        },
+        { status: 500 }
+      );
   }
 }

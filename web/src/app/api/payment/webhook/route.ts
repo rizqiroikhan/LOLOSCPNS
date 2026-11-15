@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { verifikasiWebhookPembayaran } from "@/lib/access-control";
+import { verifikasiWebhookPembayaran } from "@/lib/payment-security";
 
 export async function POST(request: Request) {
   try {

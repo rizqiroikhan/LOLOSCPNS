@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { ekstrakSesiDariHeaderCookie } from "@/lib/admin-auth";
 import { buatEmbeddingTeks, panggilVisionAI } from "@/lib/ai-client";
 import {
   CONTOH_HASIL_EKSTRAKSI_SOAL_SKD,
@@ -14,6 +15,17 @@ const INSTRUKSI_VISION_SOAL =
   "Kembalikan JSON dengan kunci 'daftar_soal'.";
 
 export async function POST(request: Request) {
+  const sesiAdmin = ekstrakSesiDariHeaderCookie(request.headers.get("cookie"));
+  if (!sesiAdmin) {
+    return NextResponse.json(
+      {
+        status: "gagal",
+        pesan: "Silakan masuk ke Menu Admin terlebih dahulu untuk memproses soal.",
+      },
+      { status: 401 }
+    );
+  }
+
   try {
     const formData = await request.formData();
     const berkas = formData.get("berkas") as File | null;

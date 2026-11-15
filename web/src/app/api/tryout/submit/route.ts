@@ -1,23 +1,67 @@
 import { NextResponse } from "next/server";
-import { bangunBankSoalSimulasi110 } from "@/lib/cat-question-bank";
+import {
+  DAFTAR_PAKET_LANGGANAN,
+  evaluasiAksesPaketSimulasi,
+} from "@/lib/access-control";
+import { simpanRiwayatTryoutPeserta } from "@/lib/commercial-store";
+import { analisisKesenjanganNilaiSKD } from "@/lib/gap-analyzer";
+import { muatPetaPenilaianOtoritatif } from "@/lib/question-loader";
 import {
   evaluasiKelulusanSKD,
   hitungSkorDariJawaban,
 } from "@/lib/scoring-engine";
-import { buatKlienSupabaseServer } from "@/lib/supabase";
+import { bacaSesiPesertaDariHeaderCookie } from "@/lib/user-auth";
 import type { JenisFormasiSKD, PetaJawabanPeserta } from "@/types/database";
 
 export async function POST(request: Request) {
   try {
     const badan = await request.json();
+    const idPaket = String(badan.package_id || "paket-perdana-gratis").trim();
+    const infoPaket = DAFTAR_PAKET_LANGGANAN[idPaket];
+
+    if (!infoPaket) {
+      return NextResponse.json(
+        {
+          status: "gagal",
+          pesan: `Paket simulasi "${idPaket}" tidak dikenali.`,
+        },
+        { status: 404 }
+      );
+    }
+
+    const profil = await bacaSesiPesertaDariHeaderCookie(
+      request.headers.get("cookie")
+    );
+    const tingkatLangganan = profil?.tingkat_langganan || "gratis";
+    const akses = evaluasiAksesPaketSimulasi({
+      idPaket,
+      tingkatLangganan,
+    });
+
+    if (!akses.diizinkan) {
+      return NextResponse.json(
+        {
+          status: "terkunci",
+          butuh_masuk: !profil,
+          pesan: akses.pesanAkses,
+          url_upgrade: `/pembayaran?paket=${encodeURIComponent(idPaket)}`,
+        },
+        { status: 403 }
+      );
+    }
+
     const jenisFormasi: JenisFormasiSKD = badan.formasi_type || "umum";
     const disabilitasSensorikNetra: boolean = Boolean(badan.is_sensory_blind);
     const jawabanPeserta: PetaJawabanPeserta = badan.answers_json || {};
-    const packageId: string | null = badan.package_id || null;
-    const userId: string =
-      badan.user_id || "00000000-0000-4000-8000-000000000001";
+    const daftarIdSoal = Array.isArray(badan.soal_ids)
+      ? (badan.soal_ids as unknown[]).map((x) => String(x))
+      : undefined;
 
-    const daftarSoal = bangunBankSoalSimulasi110();
+    const daftarSoal = await muatPetaPenilaianOtoritatif(
+      idPaket,
+      daftarIdSoal
+    );
+
     const hasilSkor = hitungSkorDariJawaban(daftarSoal, jawabanPeserta);
     const evaluasi = evaluasiKelulusanSKD({
       skorSubtes: hasilSkor.skorSubtes,
@@ -25,36 +69,41 @@ export async function POST(request: Request) {
       disabilitasSensorikNetra,
     });
 
-    let tersimpanDiBasisData = false;
-    try {
-      const supabase = buatKlienSupabaseServer();
-      const { error } = await supabase.from("tryout_attempts").insert({
-        user_id: userId,
-        package_id: packageId,
-        stage: "SKD",
-        formasi_type: jenisFormasi,
-        is_sensory_blind: disabilitasSensorikNetra,
-        answers_json: jawabanPeserta,
-        section_scores_json: hasilSkor.skorSubtes,
-        total_score: hasilSkor.skorTotal,
-        is_passed: evaluasi.lulusAmbangBatas,
-        ai_diagnostic_summary: evaluasi.ringkasanEvaluasi,
-        finished_at: new Date().toISOString(),
-      });
+    const analisisGap = analisisKesenjanganNilaiSKD({
+      daftarSoal,
+      jawabanPeserta,
+      jenisFormasi,
+      disabilitasSensorikNetra,
+    });
 
-      if (!error) {
-        tersimpanDiBasisData = true;
-      }
-    } catch {
-      tersimpanDiBasisData = false;
+    let tersimpanDiBasisData = false;
+    if (profil) {
+      tersimpanDiBasisData = await simpanRiwayatTryoutPeserta({
+        userId: profil.id,
+        packageSlug: idPaket,
+        formasiType: jenisFormasi,
+        isSensoryBlind: disabilitasSensorikNetra,
+        answersJson: jawabanPeserta,
+        sectionScoresJson: hasilSkor.skorSubtes,
+        totalScore: evaluasi.skorTotal,
+        isPassed: evaluasi.lulusAmbangBatas,
+        diagnosticSummary: analisisGap.rekomendasiBelajar,
+      });
     }
 
     return NextResponse.json({
       status: "berhasil",
-      pesan: "Hasil simulasi CAT SKD berhasil dihitung secara resmi.",
+      pesan: profil
+        ? "Hasil simulasi CAT SKD dihitung dan disimpan ke riwayat akun Anda."
+        : "Hasil simulasi CAT SKD berhasil dihitung secara resmi.",
       tersimpan_di_basis_data: tersimpanDiBasisData,
       hasil_skor: hasilSkor,
       evaluasi,
+      peta_kelemahan: {
+        rekomendasi_belajar: analisisGap.rekomendasiBelajar,
+        tiga_prioritas: analisisGap.tigaSubTopikPrioritas,
+      },
+      daftar_soal_pembahasan: daftarSoal,
     });
   } catch (galat) {
     return NextResponse.json(

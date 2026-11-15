@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import KuisSingkatInteraktifSKD from "@/components/MiniQuizSKD";
+import NavbarPeserta from "@/components/NavbarPeserta";
 import { REGULASI_SKD_321_2024 } from "@/lib/scoring-engine";
 import type { JenisFormasiSKD } from "@/types/database";
 
@@ -49,20 +50,7 @@ export default function HalamanUtama() {
             </Link>
           </div>
 
-          <div className="flex items-center gap-2.5">
-            <Link
-              href="/admin"
-              className="rounded-xl border border-indigo-200 bg-indigo-50 px-3.5 py-2 text-xs font-bold text-indigo-800 shadow-sm transition hover:bg-indigo-100 sm:text-sm"
-            >
-              Menu Admin
-            </Link>
-            <Link
-              href="/simulasi/skd/paket-perdana-gratis"
-              className="rounded-xl bg-blue-700 px-4 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-blue-800 sm:text-sm"
-            >
-              Mulai Simulasi CAT SKD →
-            </Link>
-          </div>
+          <NavbarPeserta />
         </div>
       </nav>
 
@@ -484,13 +472,29 @@ export default function HalamanUtama() {
       {/* Kaki Halaman (Footer) */}
       <footer className="border-t border-slate-200 bg-slate-900 py-8 text-xs text-slate-400">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-6">
-          <p>
-            © 2026 <strong>LOLOS CPNS</strong> — Platform Persiapan & Simulasi
-            CAT CPNS Berbasis AI.
-          </p>
-          <p>
-            Acuan Regulasi Resmi: Keputusan Menteri PANRB Nomor 321 Tahun 2024.
-          </p>
+          <div>
+            <p>
+              © 2026 <strong>LOLOS CPNS</strong> — Platform Persiapan &amp; Simulasi
+              CAT CPNS Terpadu.
+            </p>
+            <p className="mt-1 text-slate-500">
+              Acuan Regulasi Resmi: Keputusan Menteri PANRB Nomor 321 Tahun 2024.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-4 font-semibold text-slate-300">
+            <Link href="/dasbor" className="hover:text-white">
+              Dasbor Peserta
+            </Link>
+            <Link href="/simulasi/skb" className="hover:text-white">
+              Modul SKB Terpadu
+            </Link>
+            <Link href="/legal/syarat-ketentuan" className="hover:text-white">
+              Syarat &amp; Ketentuan
+            </Link>
+            <Link href="/legal/privasi" className="hover:text-white">
+              Privasi &amp; Refund
+            </Link>
+          </div>
         </div>
       </footer>
     </div>

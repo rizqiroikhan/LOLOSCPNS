@@ -1,45 +1,77 @@
 import { NextResponse } from "next/server";
+import {
+  ambilPesananBerdasarkanOrderId,
+  selesaikanStatusPesananDariWebhook,
+} from "@/lib/commercial-store";
 import { verifikasiWebhookPembayaran } from "@/lib/payment-security";
 
 export async function POST(request: Request) {
   try {
-    const payload = await request.json();
-    const hasilVerifikasi = verifikasiWebhookPembayaran({
-      order_id: String(payload.order_id || "LC-SANDBOX"),
-      status_code: payload.status_code ? String(payload.status_code) : undefined,
-      gross_amount: payload.gross_amount
-        ? String(payload.gross_amount)
-        : undefined,
-      signature_key: payload.signature_key
-        ? String(payload.signature_key)
-        : undefined,
-      transaction_status: String(payload.transaction_status || "settlement"),
-      paket_id: payload.paket_id ? String(payload.paket_id) : "paket-intensif-skd",
-    });
+    const badan = (await request.json()) as Record<string, unknown>;
+    const orderId = String(badan.order_id || "").trim();
 
-    if (!hasilVerifikasi.sah) {
+    if (!orderId) {
       return NextResponse.json(
         {
           status: "gagal",
-          pesan: hasilVerifikasi.pesanNotifikasi,
+          pesan: "Parameter order_id wajib disertakan pada notifikasi webhook.",
+        },
+        { status: 400 }
+      );
+    }
+
+    const pesanan = await ambilPesananBerdasarkanOrderId(orderId);
+    if (!pesanan) {
+      return NextResponse.json(
+        {
+          status: "tidak_ditemukan",
+          pesan: `Pesanan ${orderId} tidak ditemukan dalam basis data transaksi.`,
+        },
+        { status: 404 }
+      );
+    }
+
+    const hasil = verifikasiWebhookPembayaran({
+      order_id: orderId,
+      status_code: String(badan.status_code || ""),
+      gross_amount: String(badan.gross_amount || ""),
+      signature_key: String(badan.signature_key || ""),
+      transaction_status: String(badan.transaction_status || ""),
+      fraud_status: badan.fraud_status ? String(badan.fraud_status) : undefined,
+      paket_id: pesanan.paket_id,
+      nominalHarapanIdr: pesanan.nominal_idr,
+    });
+
+    if (!hasil.sah) {
+      return NextResponse.json(
+        {
+          status: "ditolak",
+          pesan: hasil.pesanNotifikasi,
         },
         { status: 401 }
       );
     }
 
-    return NextResponse.json({
-      status: "berhasil",
-      pesan: hasilVerifikasi.pesanNotifikasi,
-      status_transaksi: hasilVerifikasi.statusTransaksi,
-      tingkat_langganan_aktif: hasilVerifikasi.tingkatAktifBaru,
+    const pesananDiperbarui = await selesaikanStatusPesananDariWebhook({
+      orderId: pesanan.order_id,
+      statusBaru: hasil.statusTransaksi,
+      rawWebhookPayload: badan,
     });
-  } catch (galat) {
+
+    return NextResponse.json({
+      status: hasil.statusTransaksi,
+      tingkat_langganan_aktif: hasil.tingkatAktifBaru,
+      pesan: hasil.pesanNotifikasi,
+      pesanan: pesananDiperbarui,
+    });
+  } catch (err) {
     return NextResponse.json(
       {
         status: "gagal",
-        pesan: `Gagal memproses webhook pembayaran: ${
-          galat instanceof Error ? galat.message : "Kesalahan tidak diketahui"
-        }`,
+        pesan:
+          err instanceof Error
+            ? err.message
+            : "Gagal memproses webhook notifikasi pembayaran.",
       },
       { status: 500 }
     );

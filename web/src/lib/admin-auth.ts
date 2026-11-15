@@ -91,20 +91,23 @@ export function verifikasiKataSandiAdmin(
 // TOKEN SESI HMAC-SHA256 UNTUK COOKIE HTTPONLY
 // ==============================================================================
 function dapatkanKunciRahasiaSesi(): string {
-  if (
-    process.env.ADMIN_SESSION_SECRET &&
-    process.env.ADMIN_SESSION_SECRET.trim().length >= 16
-  ) {
-    return process.env.ADMIN_SESSION_SECRET.trim();
+  const rahasiaEksplisit = (process.env.ADMIN_SESSION_SECRET || "").trim();
+  const adalahPlaceholder =
+    !rahasiaEksplisit ||
+    rahasiaEksplisit.length < 32 ||
+    rahasiaEksplisit.includes("ganti_kunci_rahasia");
+
+  if (!adalahPlaceholder) {
+    return rahasiaEksplisit;
   }
-  const kunciCadangan =
-    process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    process.env.AI_API_KEY ||
-    "kunci_lokal_sesi_admin_lolos_cpns_2026";
-  return crypto
-    .createHash("sha256")
-    .update(`sesi-admin:${kunciCadangan}`)
-    .digest("hex");
+
+  if (process.env.NODE_ENV === "production") {
+    throw new Error(
+      "Variabel lingkungan ADMIN_SESSION_SECRET wajib diatur (minimal 32 karakter acak) di lingkungan produksi."
+    );
+  }
+
+  return "kunci_lokal_sesi_admin_lolos_cpns_2026";
 }
 
 export function buatTokenSesiAdmin(profil: ProfilAkunAdminPublik): string {
@@ -165,7 +168,11 @@ export function ekstrakSesiDariHeaderCookie(
     const nama = p.slice(0, indeksSamaDengan).trim();
     const nilai = p.slice(indeksSamaDengan + 1).trim();
     if (nama === NAMA_COOKIE_SESI_ADMIN) {
-      return verifikasiTokenSesiAdmin(decodeURIComponent(nilai));
+      try {
+        return verifikasiTokenSesiAdmin(decodeURIComponent(nilai));
+      } catch {
+        return null;
+      }
     }
   }
   return null;
@@ -176,15 +183,33 @@ export function ekstrakSesiDariHeaderCookie(
 // ==============================================================================
 const memoriSementaraMap = new Map<string, DataAkunAdminTersimpan[]>();
 
+function pastikanLingkunganPenyimpananAdminSiap(pathKustom?: string): void {
+  if (
+    !pathKustom &&
+    process.env.NODE_ENV === "production" &&
+    !apakahSupabaseTersedia()
+  ) {
+    throw new Error(
+      "Basis data produksi Supabase wajib terkonfigurasi untuk manajemen akun admin."
+    );
+  }
+}
+
 function buatAkunAdminAwalBootstrap(): DataAkunAdminTersimpan {
   const usernameAwal = (process.env.ADMIN_BOOTSTRAP_USERNAME || "admin")
     .trim()
     .toLowerCase();
-  const kataSandiAwal =
-    process.env.ADMIN_BOOTSTRAP_PASSWORD &&
-    !process.env.ADMIN_BOOTSTRAP_PASSWORD.includes("ganti_kata_sandi")
-      ? process.env.ADMIN_BOOTSTRAP_PASSWORD
-      : "Admin123!";
+  const envKataSandi = (process.env.ADMIN_BOOTSTRAP_PASSWORD || "").trim();
+  const kataSandiValid =
+    envKataSandi.length >= 8 && !envKataSandi.includes("ganti_kata_sandi");
+
+  if (!kataSandiValid && process.env.NODE_ENV === "production") {
+    throw new Error(
+      "Variabel lingkungan ADMIN_BOOTSTRAP_PASSWORD wajib diatur (minimal 8 karakter) di lingkungan produksi."
+    );
+  }
+
+  const kataSandiAwal = kataSandiValid ? envKataSandi : "Admin123!";
 
   return {
     id: crypto.randomUUID(),
@@ -257,6 +282,8 @@ function keProfilPublik(
 async function bacaSemuaAkun(
   pathKustom?: string
 ): Promise<DataAkunAdminTersimpan[]> {
+  pastikanLingkunganPenyimpananAdminSiap(pathKustom);
+
   if (!pathKustom && apakahSupabaseTersedia()) {
     try {
       const { buatKlienSupabaseServer } = await import("./supabase.ts");
@@ -266,20 +293,58 @@ async function bacaSemuaAkun(
         .select("*")
         .order("created_at", { ascending: true });
 
-      if (!error && Array.isArray(data)) {
+      if (error) {
+        if (process.env.NODE_ENV === "production") {
+          throw new Error(`Gagal membaca tabel admin_accounts: ${error.message}`);
+        }
+      } else if (Array.isArray(data)) {
         if (data.length === 0) {
           const akunAwal = buatAkunAdminAwalBootstrap();
-          await supabase.from("admin_accounts").insert(akunAwal);
+          const { error: errInsert } = await supabase
+            .from("admin_accounts")
+            .insert(akunAwal);
+          if (errInsert && process.env.NODE_ENV === "production") {
+            throw new Error(
+              `Gagal menginisialisasi akun admin awal: ${errInsert.message}`
+            );
+          }
           return [akunAwal];
         }
         return data as DataAkunAdminTersimpan[];
       }
-    } catch {
-      // Beralih ke penyimpanan berkas lokal jika tabel belum dimigrasi
+    } catch (galat) {
+      if (process.env.NODE_ENV === "production") {
+        throw galat;
+      }
     }
   }
 
   return bacaSemuaAkunLokal(pathKustom);
+}
+
+export function periksaHakAksesManajemenAdmin(parameter: {
+  peranPelaku: PeranAkunAdmin;
+  idPelaku: string;
+  aksi: "tambah" | "ubah_sandi" | "hapus";
+  idTarget?: string;
+}): { diizinkan: boolean; pesan?: string } {
+  if (parameter.peranPelaku === "admin_utama") {
+    return { diizinkan: true };
+  }
+
+  if (
+    parameter.aksi === "ubah_sandi" &&
+    parameter.idTarget &&
+    parameter.idTarget === parameter.idPelaku
+  ) {
+    return { diizinkan: true };
+  }
+
+  return {
+    diizinkan: false,
+    pesan:
+      "Akses ditolak: Hanya Administrator Utama (admin_utama) yang berwenang menambah, menghapus, atau mengubah kata sandi akun admin lain.",
+  };
 }
 
 export async function bacaDaftarAkunAdminPublik(
@@ -387,17 +452,25 @@ export async function tambahAkunAdmin(parameter: {
       const { buatKlienSupabaseServer } = await import("./supabase.ts");
       const supabase = buatKlienSupabaseServer();
       const { error } = await supabase.from("admin_accounts").insert(entriBaru);
-      if (!error) {
+      if (error) {
+        if (process.env.NODE_ENV === "production") {
+          throw new Error(`Gagal menyimpan akun admin ke basis data: ${error.message}`);
+        }
+      } else {
         return {
           berhasil: true,
           pesan: `Akun admin "${entriBaru.username}" berhasil ditambahkan.`,
           akunBaru: keProfilPublik(entriBaru),
         };
       }
-    } catch {
-      // Lanjut ke penyimpanan lokal bila tabel Supabase belum dibuat
+    } catch (galat) {
+      if (process.env.NODE_ENV === "production") {
+        throw galat;
+      }
     }
   }
+
+  pastikanLingkunganPenyimpananAdminSiap(parameter.pathKustom);
 
   const daftarTerbaru = [...daftarSaatIni, entriBaru];
   simpanSemuaAkunLokal(daftarTerbaru, parameter.pathKustom);
@@ -444,16 +517,24 @@ export async function ubahKataSandiAkunAdmin(parameter: {
         .from("admin_accounts")
         .update({ password_hash: hashBaru })
         .eq("id", parameter.idTarget);
-      if (!error) {
+      if (error) {
+        if (process.env.NODE_ENV === "production") {
+          throw new Error(`Gagal memperbarui kata sandi di basis data: ${error.message}`);
+        }
+      } else {
         return {
           berhasil: true,
           pesan: `Kata sandi untuk akun "${target.username}" berhasil diperbarui.`,
         };
       }
-    } catch {
-      // Lanjut ke penyimpanan lokal
+    } catch (galat) {
+      if (process.env.NODE_ENV === "production") {
+        throw galat;
+      }
     }
   }
+
+  pastikanLingkunganPenyimpananAdminSiap(parameter.pathKustom);
 
   const daftarTerbaru = daftar.map((item) =>
     item.id === parameter.idTarget
@@ -510,16 +591,24 @@ export async function hapusAkunAdmin(parameter: {
         .from("admin_accounts")
         .delete()
         .eq("id", parameter.idTarget);
-      if (!error) {
+      if (error) {
+        if (process.env.NODE_ENV === "production") {
+          throw new Error(`Gagal menghapus akun admin dari basis data: ${error.message}`);
+        }
+      } else {
         return {
           berhasil: true,
           pesan: `Akun admin "${target.username}" berhasil dihapus dari sistem.`,
         };
       }
-    } catch {
-      // Lanjut ke penyimpanan lokal
+    } catch (galat) {
+      if (process.env.NODE_ENV === "production") {
+        throw galat;
+      }
     }
   }
+
+  pastikanLingkunganPenyimpananAdminSiap(parameter.pathKustom);
 
   const daftarTerbaru = daftar.filter((a) => a.id !== parameter.idTarget);
   simpanSemuaAkunLokal(daftarTerbaru, parameter.pathKustom);

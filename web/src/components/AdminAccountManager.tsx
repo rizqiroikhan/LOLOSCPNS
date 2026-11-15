@@ -13,9 +13,12 @@ export interface AkunAdminPublikClient {
 
 export default function AdminAccountManager({
   idAdminAktif,
+  peranAdminAktif = "admin",
 }: {
   idAdminAktif: string;
+  peranAdminAktif?: "admin_utama" | "admin";
 }) {
+  const adalahAdminUtama = peranAdminAktif === "admin_utama";
   const [daftarAkun, setDaftarAkun] = useState<AkunAdminPublikClient[]>([]);
   const [sedangMemuat, setSedangMemuat] = useState<boolean>(true);
   const [pesanSukses, setPesanSukses] = useState<string | null>(null);
@@ -190,10 +193,24 @@ export default function AdminAccountManager({
       <div className="grid gap-6 lg:grid-cols-12">
         {/* KOLOM KIRI: FORM TAMBAH AKUN ADMIN */}
         <section className="lg:col-span-5">
-          <form
-            onSubmit={tanganiTambahAkun}
-            className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
-          >
+          {!adalahAdminUtama ? (
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 shadow-sm">
+              <h3 className="text-base font-bold text-amber-950">
+                Hak Akses Pengelola Terbatas
+              </h3>
+              <p className="mt-2 text-xs leading-relaxed text-amber-900">
+                Anda masuk sebagai <strong>Admin Kurator</strong>. Penambahan
+                admin baru, penghapusan akun, dan pembaruan kata sandi milik
+                pengelola lain hanya dapat dilakukan oleh{" "}
+                <strong>Admin Utama</strong>. Anda tetap dapat memperbarui kata
+                sandi akun Anda sendiri pada panel sebelah kanan.
+              </p>
+            </div>
+          ) : (
+            <form
+              onSubmit={tanganiTambahAkun}
+              className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
+            >
             <h3 className="text-base font-bold text-slate-900">
               Tambah Akun Admin Baru
             </h3>
@@ -297,6 +314,7 @@ export default function AdminAccountManager({
                 : "+ Tambah Akun Admin"}
             </button>
           </form>
+          )}
         </section>
 
         {/* KOLOM KANAN: DAFTAR AKUN ADMIN TERDAFTAR */}
@@ -333,7 +351,9 @@ export default function AdminAccountManager({
                 {daftarAkun.map((akun, indeks) => {
                   const sedangDipakaiLogin = akun.id === idAdminAktif;
                   const satuSatunyaAkun = daftarAkun.length <= 1;
-                  const tidakBolehHapus = sedangDipakaiLogin || satuSatunyaAkun;
+                  const bolehUbahSandi = adalahAdminUtama || sedangDipakaiLogin;
+                  const tidakBolehHapus =
+                    !adalahAdminUtama || sedangDipakaiLogin || satuSatunyaAkun;
 
                   return (
                     <div
@@ -370,19 +390,21 @@ export default function AdminAccountManager({
                         </div>
 
                         <div className="flex flex-wrap items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setIdUbahSandi(
-                                idUbahSandi === akun.id ? null : akun.id
-                              );
-                              setNilaiSandiReset("");
-                              setIdKonfirmasiHapus(null);
-                            }}
-                            className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
-                          >
-                            Ubah Sandi
-                          </button>
+                          {bolehUbahSandi && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setIdUbahSandi(
+                                  idUbahSandi === akun.id ? null : akun.id
+                                );
+                                setNilaiSandiReset("");
+                                setIdKonfirmasiHapus(null);
+                              }}
+                              className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                            >
+                              Ubah Sandi
+                            </button>
+                          )}
 
                           {!tidakBolehHapus ? (
                             idKonfirmasiHapus === akun.id ? (
@@ -419,7 +441,9 @@ export default function AdminAccountManager({
                             <span className="rounded-lg bg-slate-200/80 px-2.5 py-1.5 text-[11px] font-medium text-slate-500">
                               {sedangDipakaiLogin
                                 ? "Akun aktif"
-                                : "Akun terakhir"}
+                                : !adalahAdminUtama
+                                  ? "Khusus Admin Utama"
+                                  : "Akun terakhir"}
                             </span>
                           )}
                         </div>

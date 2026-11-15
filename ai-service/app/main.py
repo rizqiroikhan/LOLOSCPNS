@@ -3,6 +3,7 @@ Layanan Mikro AI & Ekstraksi Dokumen — LOLOS CPNS.
 Seluruh tanggapan API kepada pengguna maupun Admin menggunakan Bahasa Indonesia yang baik dan benar.
 """
 
+import hmac
 import os
 import time
 from typing import Any, Dict, List, Optional
@@ -32,17 +33,24 @@ app = FastAPI(
     version="1.2.0",
 )
 
+_DAFTAR_ORIGIN_DIIZINKAN = [
+    item.strip()
+    for item in os.getenv("ALLOWED_ORIGINS", "http://localhost:3000").split(",")
+    if item.strip()
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=_DAFTAR_ORIGIN_DIIZINKAN,
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
-# Pembatas Laju Permintaan (Rate Limiting) untuk melindungi kuota API AI
+# Pembatas Laju Permintaan (Rate Limiting) & Autentikasi Server-ke-Server
 _CATATAN_LAJU_KLIEN: Dict[str, Dict[str, float]] = {}
 _BATAS_PER_MENIT = int(os.getenv("AI_RATE_LIMIT_PER_MINUTE", "30"))
+_BATAS_UKURAN_UNGGAH_BYTES = 15 * 1024 * 1024  # 15 MB
 
 
 @app.middleware("http")
@@ -50,6 +58,33 @@ async def middleware_pembatas_laju_ai(request: Request, call_next):
     jalur = request.url.path
     if jalur in ("/", "/kesehatan", "/health"):
         return await call_next(request)
+
+    if request.method != "OPTIONS":
+        mode_env = os.getenv("ENV", os.getenv("NODE_ENV", "")).strip().lower()
+        rahasia_internal = os.getenv("AI_SERVICE_INTERNAL_SECRET", "").strip()
+        if mode_env == "production" and not rahasia_internal:
+            return JSONResponse(
+                status_code=503,
+                content={
+                    "detail": "Konfigurasi keamanan internal layanan AI produksi belum ditetapkan."
+                },
+            )
+        if rahasia_internal:
+            header_auth = request.headers.get("authorization", "")
+            token_diterima = (
+                header_auth[7:].strip()
+                if header_auth.lower().startswith("bearer ")
+                else ""
+            )
+            if not token_diterima or not hmac.compare_digest(
+                token_diterima, rahasia_internal
+            ):
+                return JSONResponse(
+                    status_code=401,
+                    content={
+                        "detail": "Token otorisasi internal layanan AI tidak valid atau tidak disertakan."
+                    },
+                )
 
     ip_klien = request.client.host if request.client else "klien-lokal"
     sekarang = time.time()
@@ -167,6 +202,11 @@ async def endpoint_ekstraksi_regulasi(
     """
     try:
         isi_bytes = await berkas.read()
+        if len(isi_bytes) > _BATAS_UKURAN_UNGGAH_BYTES:
+            raise HTTPException(
+                status_code=413,
+                detail="Ukuran berkas regulasi melebihi batas maksimal 15 MB.",
+            )
         hasil = await proses_ekstraksi_regulasi(
             data_berkas=isi_bytes,
             nama_berkas=berkas.filename or "regulasi_cpns.pdf",
@@ -206,6 +246,11 @@ async def endpoint_ekstraksi_soal(
     """
     try:
         isi_bytes = await berkas.read()
+        if len(isi_bytes) > _BATAS_UKURAN_UNGGAH_BYTES:
+            raise HTTPException(
+                status_code=413,
+                detail="Ukuran berkas soal melebihi batas maksimal 15 MB.",
+            )
         hasil = await proses_ekstraksi_soal_multimodal(
             data_berkas=isi_bytes,
             nama_berkas=berkas.filename or "pindaian_soal.png",

@@ -3,51 +3,97 @@ import {
   DAFTAR_PAKET_LANGGANAN,
   type MetodePembayaranResmi,
 } from "@/lib/access-control";
+import { buatDanSimpanPesananPembayaran } from "@/lib/commercial-store";
+import { bacaSesiPesertaDariHeaderCookie } from "@/lib/user-auth";
+
+const METODE_RESMI = new Set<MetodePembayaranResmi>([
+  "qris",
+  "va_bca",
+  "va_mandiri",
+  "va_bni",
+]);
 
 export async function POST(request: Request) {
   try {
+    const profil = await bacaSesiPesertaDariHeaderCookie(
+      request.headers.get("cookie")
+    );
+    if (!profil) {
+      return NextResponse.json(
+        {
+          status: "butuh_masuk",
+          pesan:
+            "Silakan masuk atau daftarkan akun peserta terlebih dahulu sebelum membuat transaksi pembayaran.",
+        },
+        { status: 401 }
+      );
+    }
+
     const badan = await request.json();
-    const idPaket: string = badan.id_paket || "paket-intensif-skd";
-    const metodePembayaran: MetodePembayaranResmi =
-      badan.metode_pembayaran || "qris";
-    const namaPeserta: string = badan.nama_peserta || "Peserta LOLOS CPNS";
-    const emailPeserta: string = badan.email_peserta || "peserta@loloscpns.id";
+    const idPaket = String(badan.id_paket || "");
+    const metodeMentah = String(
+      badan.metode_pembayaran || "qris"
+    ) as MetodePembayaranResmi;
+    const metodePembayaran: MetodePembayaranResmi = METODE_RESMI.has(
+      metodeMentah
+    )
+      ? metodeMentah
+      : "qris";
 
-    const paket =
-      DAFTAR_PAKET_LANGGANAN[idPaket] ||
-      DAFTAR_PAKET_LANGGANAN["paket-intensif-skd"];
+    const paket = DAFTAR_PAKET_LANGGANAN[idPaket];
+    if (!paket || paket.gratis) {
+      return NextResponse.json(
+        {
+          status: "gagal",
+          pesan: "Paket berbayar yang dipilih tidak valid atau tidak memerlukan pembayaran.",
+        },
+        { status: 400 }
+      );
+    }
 
-    const nomorPesanan = `LC-${Date.now()}-${Math.floor(
-      1000 + Math.random() * 9000
-    )}`;
+    const { pesanan, modeSimulasiLokal } =
+      await buatDanSimpanPesananPembayaran({
+        userId: profil.id,
+        namaPeserta: profil.nama_lengkap,
+        emailPeserta: profil.email,
+        paketId: paket.id_paket,
+        judulPaket: paket.judul,
+        kodeTingkat: paket.kode_tingkat,
+        nominalIdr: paket.harga_idr,
+        metodePembayaran,
+      });
 
-    return NextResponse.json({
-      status: "berhasil",
-      pesan: `Tagihan pembayaran untuk "${paket.judul}" berhasil dibuat. Silakan selesaikan pembayaran melalui ${metodePembayaran.toUpperCase()}.`,
-      pesanan: {
-        order_id: nomorPesanan,
-        id_paket: paket.id_paket,
-        kode_tingkat: paket.kode_tingkat,
-        judul_paket: paket.judul,
-        nominal_idr: paket.harga_idr,
-        metode_pembayaran: metodePembayaran,
-        nama_peserta: namaPeserta,
-        email_peserta: emailPeserta,
-        status_transaksi: "menunggu_pembayaran",
-        kode_qris_simulasi: `00020101021226660014ID.CO.LOLOSCPNS.WWW011893600914${nomorPesanan}5204581253033605405${paket.harga_idr}5802ID5910LOLOS CPNS6007JAKARTA6304ABCD`,
-        nomor_akun_virtual: `88010${Math.floor(
-          1000000000 + Math.random() * 9000000000
-        )}`,
-        dibuat_pada: new Date().toISOString(),
+    return NextResponse.json(
+      {
+        status: "menunggu_pembayaran",
+        pesan: modeSimulasiLokal
+          ? "Pesanan simulasi lokal berhasil dibuat. Gunakan konfirmasi uji coba lokal di halaman ini."
+          : "Tautan pembayaran Midtrans Snap berhasil diterbitkan.",
+        mode_simulasi_lokal: modeSimulasiLokal,
+        paket,
+        pesanan: {
+          order_id: pesanan.order_id,
+          paket_id: pesanan.paket_id,
+          judul_paket: paket.judul,
+          nominal_idr: pesanan.nominal_idr,
+          metode_pembayaran: pesanan.metode_pembayaran,
+          status_transaksi: pesanan.status_transaksi,
+          snap_token: pesanan.snap_token,
+          snap_redirect_url: pesanan.snap_redirect_url,
+          qris_string: pesanan.qris_string,
+          va_number: pesanan.va_number,
+        },
       },
-    });
-  } catch (galat) {
+      { status: 201 }
+    );
+  } catch (err) {
     return NextResponse.json(
       {
         status: "gagal",
-        pesan: `Gagal membuat tagihan pembayaran: ${
-          galat instanceof Error ? galat.message : "Kesalahan tidak diketahui"
-        }`,
+        pesan:
+          err instanceof Error
+            ? err.message
+            : "Gagal membuat permintaan pembayaran.",
       },
       { status: 500 }
     );

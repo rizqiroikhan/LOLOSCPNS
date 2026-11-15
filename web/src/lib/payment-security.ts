@@ -1,9 +1,11 @@
 /**
  * Modul Keamanan & Verifikasi Webhook Pembayaran (Server-Only) — LOLOS CPNS.
  *
- * Menggunakan modul kriptografi bawaan Node.js (`node:crypto`) untuk menghitung
- * dan memverifikasi tanda tangan SHA-512 Midtrans / Mayar pada API Route server.
- * Tidak boleh diimpor langsung oleh komponen antarmuka (`"use client"`).
+ * Perbaikan P0 Keamanan Komersial:
+ * - Tanda tangan kriptografi SHA-512 (`signature_key`) bersifat WAJIB pada setiap webhook.
+ * - Menggunakan `crypto.timingSafeEqual` untuk mencegah serangan timing.
+ * - Memvalidasi kecocokan nominal tagihan (`gross_amount` vs `nominalHarapanIdr`).
+ * - Di mode produksi (`NODE_ENV === "production"`), menolak keras kunci fallback sandbox.
  */
 
 import crypto from "node:crypto";
@@ -12,6 +14,33 @@ import {
   type StatusTransaksiPembayaran,
   type TingkatLanggananPeserta,
 } from "./access-control.ts";
+
+export function dapatkanMidtransServerKey(kunciOpsional?: string): string | null {
+  const kandidat = (kunciOpsional || process.env.MIDTRANS_SERVER_KEY || "").trim();
+  const adalahPlaceholder =
+    !kandidat ||
+    kandidat.includes("masukkan_midtrans") ||
+    kandidat === "kunci_sandbox_lolos_cpns";
+
+  if (!adalahPlaceholder) {
+    return kandidat;
+  }
+
+  if (process.env.NODE_ENV === "production") {
+    return null;
+  }
+
+  return "kunci_sandbox_lokal_dev_lolos_cpns";
+}
+
+export function apakahMidtransTerkonfigurasiNyata(): boolean {
+  const kandidat = (process.env.MIDTRANS_SERVER_KEY || "").trim();
+  return (
+    Boolean(kandidat) &&
+    !kandidat.includes("masukkan_midtrans") &&
+    kandidat !== "kunci_sandbox_lolos_cpns"
+  );
+}
 
 export function buatSignatureMidtrans(parameter: {
   orderId: string;
@@ -23,13 +52,22 @@ export function buatSignatureMidtrans(parameter: {
   return crypto.createHash("sha512").update(gabungan).digest("hex");
 }
 
+function bandingkanAmanHex(a: string, b: string): boolean {
+  const bufA = Buffer.from(a.toLowerCase(), "utf8");
+  const bufB = Buffer.from(b.toLowerCase(), "utf8");
+  if (bufA.length !== bufB.length) return false;
+  return crypto.timingSafeEqual(bufA, bufB);
+}
+
 export function verifikasiWebhookPembayaran(payload: {
   order_id: string;
   status_code?: string;
   gross_amount?: string;
   signature_key?: string;
   transaction_status: string;
+  fraud_status?: string;
   paket_id?: string;
+  nominalHarapanIdr?: number;
   server_key_opsional?: string;
 }): {
   sah: boolean;
@@ -37,39 +75,80 @@ export function verifikasiWebhookPembayaran(payload: {
   tingkatAktifBaru: TingkatLanggananPeserta | null;
   pesanNotifikasi: string;
 } {
-  const serverKey =
-    payload.server_key_opsional ||
-    process.env.MIDTRANS_SERVER_KEY ||
-    "kunci_sandbox_lolos_cpns";
+  const serverKey = dapatkanMidtransServerKey(payload.server_key_opsional);
+  if (!serverKey) {
+    return {
+      sah: false,
+      statusTransaksi: "dibatalkan",
+      tingkatAktifBaru: null,
+      pesanNotifikasi:
+        "Konfigurasi kunci server pembayaran produksi (MIDTRANS_SERVER_KEY) belum diatur.",
+    };
+  }
 
-  if (payload.signature_key && payload.status_code && payload.gross_amount) {
-    const harapanSignature = buatSignatureMidtrans({
-      orderId: payload.order_id,
-      statusCode: payload.status_code,
-      grossAmount: payload.gross_amount,
-      serverKey,
-    });
+  // WAJIB: Tidak ada lagi bypass tanpa signature_key / status_code / gross_amount
+  if (
+    !payload.order_id ||
+    !payload.signature_key ||
+    !payload.status_code ||
+    !payload.gross_amount
+  ) {
+    return {
+      sah: false,
+      statusTransaksi: "dibatalkan",
+      tingkatAktifBaru: null,
+      pesanNotifikasi:
+        "Tanda tangan keamanan (signature_key), status_code, dan gross_amount wajib disertakan pada webhook.",
+    };
+  }
 
-    if (payload.signature_key !== harapanSignature) {
+  const harapanSignature = buatSignatureMidtrans({
+    orderId: payload.order_id,
+    statusCode: payload.status_code,
+    grossAmount: payload.gross_amount,
+    serverKey,
+  });
+
+  if (!bandingkanAmanHex(payload.signature_key, harapanSignature)) {
+    return {
+      sah: false,
+      statusTransaksi: "dibatalkan",
+      tingkatAktifBaru: null,
+      pesanNotifikasi:
+        "Tanda tangan keamanan (signature key) notifikasi pembayaran tidak sah.",
+    };
+  }
+
+  if (typeof payload.nominalHarapanIdr === "number") {
+    const nominalWebhook = Math.round(Number(payload.gross_amount));
+    if (
+      !Number.isFinite(nominalWebhook) ||
+      nominalWebhook !== payload.nominalHarapanIdr
+    ) {
       return {
         sah: false,
         statusTransaksi: "dibatalkan",
         tingkatAktifBaru: null,
         pesanNotifikasi:
-          "Tanda tangan keamanan (signature key) notifikasi pembayaran tidak sah.",
+          "Nominal pembayaran pada notifikasi tidak sesuai dengan nilai tagihan pesanan.",
       };
     }
   }
 
   const statusMentah = (payload.transaction_status || "").toLowerCase().trim();
+  const fraudMentah = (payload.fraud_status || "").toLowerCase().trim();
   const idPaket = payload.paket_id || "paket-intensif-skd";
   const paket =
     DAFTAR_PAKET_LANGGANAN[idPaket] ||
     DAFTAR_PAKET_LANGGANAN["paket-intensif-skd"];
 
+  const lunasKartu =
+    statusMentah === "capture" &&
+    (!fraudMentah || fraudMentah === "accept");
+
   if (
     statusMentah === "settlement" ||
-    statusMentah === "capture" ||
+    lunasKartu ||
     statusMentah === "paid" ||
     statusMentah === "lunas"
   ) {
@@ -77,16 +156,20 @@ export function verifikasiWebhookPembayaran(payload: {
       sah: true,
       statusTransaksi: "lunas",
       tingkatAktifBaru: paket.kode_tingkat,
-      pesanNotifikasi: `Pembayaran pesanan ${payload.order_id} telah LUNAS. Akses "${paket.judul}" kini telah aktif sepenuhnya.`,
+      pesanNotifikasi: `Pembayaran pesanan ${payload.order_id} telah LUNAS. Akses "${paket.judul}" kini aktif untuk akun Anda.`,
     };
   }
 
-  if (statusMentah === "pending" || statusMentah === "menunggu_pembayaran") {
+  if (
+    statusMentah === "pending" ||
+    statusMentah === "menunggu_pembayaran" ||
+    (statusMentah === "capture" && fraudMentah === "challenge")
+  ) {
     return {
       sah: true,
       statusTransaksi: "menunggu_pembayaran",
       tingkatAktifBaru: null,
-      pesanNotifikasi: `Pesanan ${payload.order_id} sedang menunggu penyelesaian pembayaran melalui QRIS / Akun Virtual.`,
+      pesanNotifikasi: `Pesanan ${payload.order_id} sedang menunggu penyelesaian atau verifikasi pembayaran.`,
     };
   }
 

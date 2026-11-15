@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import Link from "next/link";
 import type {
   KategoriSubtesSKD,
   PetaJawabanPeserta,
@@ -21,6 +22,10 @@ export default function PanelLatihanPerbaikanAdaptif({
   const [tampilkanPembahasan, setTampilkanPembahasan] =
     useState<boolean>(false);
   const [pesanStatus, setPesanStatus] = useState<string | null>(null);
+  const [terkunciUpgrade, setTerkunciUpgrade] = useState<{
+    butuhMasuk: boolean;
+    urlUpgrade: string;
+  } | null>(null);
 
   async function mulaiLatihKelemahan(
     kategoriTarget: KategoriSubtesSKD = kategoriAwal,
@@ -28,6 +33,7 @@ export default function PanelLatihanPerbaikanAdaptif({
   ) {
     setSedangMembuatSoal(true);
     setPesanStatus(null);
+    setTerkunciUpgrade(null);
     setTampilkanPembahasan(false);
     setJawabanAdaptif({});
 
@@ -43,6 +49,26 @@ export default function PanelLatihanPerbaikanAdaptif({
       });
 
       const data = await res.json();
+      if (res.status === 403 || data.status === "terkunci") {
+        setTerkunciUpgrade({
+          butuhMasuk: Boolean(data.butuh_masuk),
+          urlUpgrade:
+            data.url_upgrade || "/pembayaran?paket=paket-intensif-skd",
+        });
+        setPesanStatus(
+          data.pesan ||
+            "Latihan Perbaikan Adaptif tersedia eksklusif untuk Paket Intensif SKD dan Paket Terpadu."
+        );
+        return;
+      }
+
+      if (!res.ok) {
+        setPesanStatus(
+          data.pesan || "Gagal menyiapkan latihan perbaikan adaptif."
+        );
+        return;
+      }
+
       if (Array.isArray(data.daftar_soal) && data.daftar_soal.length > 0) {
         setDaftarSoalAdaptif(data.daftar_soal);
         setPesanStatus(data.pesan);
@@ -115,8 +141,26 @@ export default function PanelLatihanPerbaikanAdaptif({
       </div>
 
       {pesanStatus && (
-        <div className="mt-4 rounded-lg border border-indigo-200 bg-white px-4 py-2.5 text-xs font-semibold text-indigo-900">
-          {pesanStatus}
+        <div className="mt-4 rounded-lg border border-indigo-200 bg-white px-4 py-3 text-xs font-semibold text-indigo-900">
+          <p>{pesanStatus}</p>
+          {terkunciUpgrade && (
+            <div className="mt-2.5 flex flex-wrap gap-2">
+              {terkunciUpgrade.butuhMasuk && (
+                <Link
+                  href="/masuk"
+                  className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-800 hover:bg-slate-100"
+                >
+                  Masuk / Daftar Akun
+                </Link>
+              )}
+              <Link
+                href={terkunciUpgrade.urlUpgrade}
+                className="rounded-lg bg-blue-700 px-3 py-1.5 text-xs font-bold text-white hover:bg-blue-800"
+              >
+                Aktifkan Paket Intensif SKD (Rp49.000) →
+              </Link>
+            </div>
+          )}
         </div>
       )}
 

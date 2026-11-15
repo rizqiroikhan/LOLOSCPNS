@@ -274,7 +274,10 @@ export default function AdminPortalShell({
         children
       ) : (
         <main className="mx-auto max-w-7xl px-6 py-8">
-          <AdminAccountManager idAdminAktif={sesiAdmin.id} />
+          <AdminAccountManager
+            idAdminAktif={sesiAdmin.id}
+            peranAdminAktif={sesiAdmin.peran}
+          />
         </main>
       )}
     </div>

@@ -3,6 +3,7 @@ import {
   bacaDaftarAkunAdminPublik,
   ekstrakSesiDariHeaderCookie,
   hapusAkunAdmin,
+  periksaHakAksesManajemenAdmin,
   type PeranAkunAdmin,
   tambahAkunAdmin,
   ubahKataSandiAkunAdmin,
@@ -13,7 +14,11 @@ async function validasiSesiTerautentikasi(request: Request) {
   if (!sesi) return null;
   const daftar = await bacaDaftarAkunAdminPublik();
   const cocok = daftar.find((a) => a.id === sesi.id);
-  return cocok ? sesi : null;
+  if (!cocok) return null;
+  return {
+    ...sesi,
+    peran: cocok.peran,
+  };
 }
 
 export async function GET(request: Request) {
@@ -30,8 +35,9 @@ export async function GET(request: Request) {
 
   const daftarAkun = await bacaDaftarAkunAdminPublik();
   return NextResponse.json({
-    status: "berhasil",
+    status: "sukses",
     daftar_akun: daftarAkun,
+    admin_aktif: sesi,
   });
 }
 
@@ -44,6 +50,21 @@ export async function POST(request: Request) {
         pesan: "Anda harus masuk ke Menu Admin sebelum menambahkan akun baru.",
       },
       { status: 401 }
+    );
+  }
+
+  const izin = periksaHakAksesManajemenAdmin({
+    peranPelaku: sesi.peran,
+    idPelaku: sesi.id,
+    aksi: "tambah",
+  });
+  if (!izin.diizinkan) {
+    return NextResponse.json(
+      {
+        status: "gagal",
+        pesan: izin.pesan || "Hanya Admin Utama yang dapat menambahkan akun admin.",
+      },
+      { status: 403 }
     );
   }
 
@@ -64,22 +85,23 @@ export async function POST(request: Request) {
       );
     }
 
-    const daftarTerbaru = await bacaDaftarAkunAdminPublik();
-    return NextResponse.json({
-      status: "berhasil",
-      pesan: hasil.pesan,
-      akun_baru: hasil.akunBaru,
-      daftar_akun: daftarTerbaru,
-    });
-  } catch (galat) {
+    const daftarAkun = await bacaDaftarAkunAdminPublik();
+    return NextResponse.json(
+      {
+        status: "sukses",
+        pesan: hasil.pesan,
+        akun: hasil.akunBaru,
+        daftar_akun: daftarAkun,
+      },
+      { status: 201 }
+    );
+  } catch (err) {
     return NextResponse.json(
       {
         status: "gagal",
-        pesan: `Gagal menambahkan akun admin: ${
-          galat instanceof Error ? galat.message : "Kesalahan tidak diketahui"
-        }`,
+        pesan: err instanceof Error ? err.message : "Permintaan tambah admin tidak valid.",
       },
-      { status: 500 }
+      { status: 400 }
     );
   }
 }
@@ -98,8 +120,25 @@ export async function PATCH(request: Request) {
 
   try {
     const badan = await request.json();
+    const idTarget = String(badan.id || "");
+    const izin = periksaHakAksesManajemenAdmin({
+      peranPelaku: sesi.peran,
+      idPelaku: sesi.id,
+      aksi: "ubah_sandi",
+      idTarget,
+    });
+    if (!izin.diizinkan) {
+      return NextResponse.json(
+        {
+          status: "gagal",
+          pesan: izin.pesan || "Anda tidak memiliki izin mengubah kata sandi akun admin lain.",
+        },
+        { status: 403 }
+      );
+    }
+
     const hasil = await ubahKataSandiAkunAdmin({
-      idTarget: String(badan.id || ""),
+      idTarget,
       kataSandiBaru: String(badan.kata_sandi_baru || ""),
     });
 
@@ -111,18 +150,16 @@ export async function PATCH(request: Request) {
     }
 
     return NextResponse.json({
-      status: "berhasil",
+      status: "sukses",
       pesan: hasil.pesan,
     });
-  } catch (galat) {
+  } catch (err) {
     return NextResponse.json(
       {
         status: "gagal",
-        pesan: `Gagal memperbarui kata sandi admin: ${
-          galat instanceof Error ? galat.message : "Kesalahan tidak diketahui"
-        }`,
+        pesan: err instanceof Error ? err.message : "Permintaan pembaruan sandi tidak valid.",
       },
-      { status: 500 }
+      { status: 400 }
     );
   }
 }
@@ -147,6 +184,22 @@ export async function DELETE(request: Request) {
       idTarget = String((badan as Record<string, unknown>).id || "");
     }
 
+    const izin = periksaHakAksesManajemenAdmin({
+      peranPelaku: sesi.peran,
+      idPelaku: sesi.id,
+      aksi: "hapus",
+      idTarget,
+    });
+    if (!izin.diizinkan) {
+      return NextResponse.json(
+        {
+          status: "gagal",
+          pesan: izin.pesan || "Hanya Admin Utama yang dapat menghapus akun admin.",
+        },
+        { status: 403 }
+      );
+    }
+
     const hasil = await hapusAkunAdmin({
       idTarget,
       idPelaku: sesi.id,
@@ -159,21 +212,19 @@ export async function DELETE(request: Request) {
       );
     }
 
-    const daftarTerbaru = await bacaDaftarAkunAdminPublik();
+    const daftarAkun = await bacaDaftarAkunAdminPublik();
     return NextResponse.json({
-      status: "berhasil",
+      status: "sukses",
       pesan: hasil.pesan,
-      daftar_akun: daftarTerbaru,
+      daftar_akun: daftarAkun,
     });
-  } catch (galat) {
+  } catch (err) {
     return NextResponse.json(
       {
         status: "gagal",
-        pesan: `Gagal menghapus akun admin: ${
-          galat instanceof Error ? galat.message : "Kesalahan tidak diketahui"
-        }`,
+        pesan: err instanceof Error ? err.message : "Permintaan hapus akun admin gagal.",
       },
-      { status: 500 }
+      { status: 400 }
     );
   }
 }

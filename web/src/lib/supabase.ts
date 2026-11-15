@@ -19,11 +19,19 @@ export function buatKlienSupabasePublik(): SupabaseClient {
  * Membuat instans klien Supabase dengan hak akses penuh (Service Role) khusus untuk sisi server/Admin.
  */
 export function buatKlienSupabaseServer(): SupabaseClient {
-  const serviceRoleKey =
-    process.env.SUPABASE_SERVICE_ROLE_KEY || supabaseAnonKey;
+  const serviceRoleEksplisit = (process.env.SUPABASE_SERVICE_ROLE_KEY || "").trim();
+  if (
+    process.env.NODE_ENV === "production" &&
+    (!serviceRoleEksplisit || serviceRoleEksplisit.includes("masukkan_supabase"))
+  ) {
+    throw new Error(
+      "SUPABASE_SERVICE_ROLE_KEY wajib diatur pada lingkungan produksi."
+    );
+  }
+  const serviceRoleKey = serviceRoleEksplisit || supabaseAnonKey;
   if (!supabaseUrl || !serviceRoleKey) {
     throw new Error(
-      "Konfigurasi server Supabase belum lengkap pada berkas lingkungan (.env)."
+      "Konfigurasi server Supabase belum lengkap pada berkas lingkungan."
     );
   }
   return createClient(supabaseUrl, serviceRoleKey, {

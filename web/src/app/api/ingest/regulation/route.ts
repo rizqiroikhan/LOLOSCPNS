@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { ekstrakSesiDariHeaderCookie } from "@/lib/admin-auth";
 import { panggilChatAI } from "@/lib/ai-client";
+import {
+  panggilLayananAI,
+  validasiBerkasUnggahanAdmin,
+} from "@/lib/ai-service-proxy";
 import { uraiJsonAI } from "@/lib/ingestion-pipeline";
 import { REGULASI_SKD_321_2024 } from "@/lib/scoring-engine";
 import { buatKlienSupabaseServer } from "@/lib/supabase";
@@ -31,8 +35,15 @@ export async function POST(request: Request) {
       );
     }
 
-    const aiServiceUrl =
-      process.env.NEXT_PUBLIC_AI_SERVICE_URL || "http://localhost:8000";
+    const validasiBerkas = validasiBerkasUnggahanAdmin(berkas, {
+      hanyaPdf: true,
+    });
+    if (!validasiBerkas.sah) {
+      return NextResponse.json(
+        { status: "gagal", pesan: validasiBerkas.pesan },
+        { status: validasiBerkas.status }
+      );
+    }
 
     // 1. Coba teruskan ke layanan mikro FastAPI (/ingest/regulation) apabila aktif
     try {
@@ -40,9 +51,10 @@ export async function POST(request: Request) {
       formLayanan.append("berkas", berkas);
       formLayanan.append("simpan_ke_db", "true");
 
-      const resFastApi = await fetch(`${aiServiceUrl}/ingest/regulation`, {
+      const resFastApi = await panggilLayananAI("/ingest/regulation", {
         method: "POST",
         body: formLayanan,
+        timeoutMs: 30000,
       });
 
       if (resFastApi.ok) {

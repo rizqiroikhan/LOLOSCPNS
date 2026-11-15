@@ -8,9 +8,17 @@ export default function HalamanUtama() {
   return (
     <main className="mx-auto max-w-5xl px-6 py-12">
       <header className="mb-10 border-b border-slate-200 pb-6">
-        <span className="inline-block rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-800">
-          Fase 1 Aktif — Pondasi Inti SKD Terpasang
-        </span>
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <span className="inline-block rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-800">
+            Fase 2 Aktif — Studio Kurasi & Ekstraksi Multimodal Terpasang
+          </span>
+          <a
+            href="/admin/kurasi-soal"
+            className="rounded-lg bg-indigo-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-indigo-700"
+          >
+            Buka Studio Kurasi Soal (Admin) →
+          </a>
+        </div>
         <h1 className="mt-3 text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
           LOLOS CPNS — Simulasi CAT SKD Berbasis Regulasi Resmi
         </h1>

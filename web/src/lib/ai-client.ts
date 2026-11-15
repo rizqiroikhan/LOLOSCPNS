@@ -127,6 +127,73 @@ export async function panggilChatAI(opsi: {
 }
 
 /**
+ * Memanggil endpoint `/chat/completions` dengan dukungan input gambar base64 (Vision Multimodal)
+ * menggunakan `AI_VISION_MODEL` dari berkas `.env`.
+ */
+export async function panggilVisionAI(opsi: {
+  instruksiEkstraksi: string;
+  dataUrlGambar: string;
+  instruksiSistem?: string;
+  suhu?: number;
+  formatJson?: boolean;
+}): Promise<string> {
+  const konf = bacaKonfigurasiAI();
+
+  if (!konf.apiKey && konf.provider !== "ollama_local") {
+    throw new Error(
+      "Kunci API AI (AI_API_KEY) belum diatur pada berkas .env. Silakan gunakan API Key gratis dari Google AI Studio, Groq, atau OpenRouter."
+    );
+  }
+
+  const badanPermintaan: Record<string, unknown> = {
+    model: konf.visionModel,
+    messages: [
+      {
+        role: "system",
+        content: opsi.instruksiSistem || INSTRUKSI_SISTEM_BAHASA_INDONESIA,
+      },
+      {
+        role: "user",
+        content: [
+          { type: "text", text: opsi.instruksiEkstraksi },
+          { type: "image_url", image_url: { url: opsi.dataUrlGambar } },
+        ],
+      },
+    ],
+    temperature: opsi.suhu ?? 0.1,
+  };
+
+  if (opsi.formatJson) {
+    badanPermintaan.response_format = { type: "json_object" };
+  }
+
+  const respons = await fetch(`${konf.baseUrl}/chat/completions`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${konf.apiKey || "ollama"}`,
+    },
+    body: JSON.stringify(badanPermintaan),
+  });
+
+  if (!respons.ok) {
+    const teksGalat = await respons.text();
+    throw new Error(
+      `Gagal memproses gambar melalui penyedia Vision AI (${konf.provider} - status ${respons.status}): ${teksGalat}`
+    );
+  }
+
+  const data = await respons.json();
+  const isi: string | undefined = data?.choices?.[0]?.message?.content;
+
+  if (!isi) {
+    throw new Error("Model Vision AI mengembalikan respons kosong.");
+  }
+
+  return isi.trim();
+}
+
+/**
  * Membuat vektor embedding melalui endpoint `/embeddings` kompatibel OpenAI.
  * Mengembalikan `null` secara aman apabila penyedia AI gratis tidak mendukung endpoint embedding,
  * sehingga sistem dapat beralih otomatis ke pencarian teks penuh (`tsvector` Bahasa Indonesia).

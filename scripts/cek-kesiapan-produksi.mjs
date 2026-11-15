@@ -124,26 +124,37 @@ function periksaKebocoranKodeSumber() {
 }
 
 function periksaKonfigurasiVercel() {
-  const pathVercel = path.join(akarRepo, "vercel.json");
-  if (!fs.existsSync(pathVercel)) {
-    catatGagal("Berkas vercel.json tidak ditemukan.");
-    return;
-  }
-  const isi = JSON.parse(fs.readFileSync(pathVercel, "utf8"));
-  const headers = isi?.headers?.[0]?.headers ?? [];
-  const namaHeaders = new Set(headers.map((h) => h.key));
+  const kandidat = [
+    { label: "vercel.json", lokasi: path.join(akarRepo, "vercel.json") },
+    { label: "web/vercel.json", lokasi: path.join(dirWeb, "vercel.json") },
+  ];
   const wajib = [
     "X-Content-Type-Options",
     "X-Frame-Options",
     "Strict-Transport-Security",
     "Content-Security-Policy",
   ];
-  const kurang = wajib.filter((k) => !namaHeaders.has(k));
-  if (kurang.length > 0) {
-    catatGagal(`Header keamanan vercel.json kurang: ${kurang.join(", ")}`);
-  } else {
-    catatOk("Header keamanan HTTP & CSP pada vercel.json terpasang lengkap.");
+
+  for (const target of kandidat) {
+    if (!fs.existsSync(target.lokasi)) {
+      catatGagal(`Berkas ${target.label} tidak ditemukan.`);
+      return;
+    }
+    const isi = JSON.parse(fs.readFileSync(target.lokasi, "utf8"));
+    const headers = isi?.headers?.[0]?.headers ?? [];
+    const namaHeaders = new Set(headers.map((h) => h.key));
+    const kurang = wajib.filter((k) => !namaHeaders.has(k));
+    if (kurang.length > 0) {
+      catatGagal(
+        `Header keamanan ${target.label} kurang: ${kurang.join(", ")}`
+      );
+      return;
+    }
   }
+
+  catatOk(
+    "Header keamanan HTTP & CSP pada vercel.json dan web/vercel.json terpasang lengkap."
+  );
 }
 
 function jalankanPerintah(judul, perintah, argumen, cwd = dirWeb) {

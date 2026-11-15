@@ -14,6 +14,12 @@ import {
   hitungSkorDariJawaban,
   REGULASI_SKD_321_2024,
 } from "@/lib/scoring-engine";
+import {
+  analisisKesenjanganNilaiSKD,
+  HasilAnalisisKesenjanganSKD,
+} from "@/lib/gap-analyzer";
+import PanelLatihanPerbaikanAdaptif from "@/components/AdaptiveDrillModal";
+import WidgetTutorSokratik from "@/components/SocraticTutorWidget";
 import type {
   JenisFormasiSKD,
   KategoriSubtesSKD,
@@ -56,6 +62,15 @@ export default function HalamanSimulatorCATSKD() {
   );
   const [hasilEvaluasiAkhir, setHasilEvaluasiAkhir] =
     useState<HasilEvaluasiSKD | null>(null);
+  const [hasilAnalisisGap, setHasilAnalisisGap] =
+    useState<HasilAnalisisKesenjanganSKD | null>(null);
+  const [targetLatihanAdaptif, setTargetLatihanAdaptif] = useState<{
+    kategori: KategoriSubtesSKD;
+    subTopik: string;
+  }>({
+    kategori: "TIU",
+    subTopik: "Kemampuan Numerik - Deret Angka",
+  });
 
   // Baca parameter formasi dari URL jika ada
   useEffect(() => {
@@ -205,8 +220,21 @@ export default function HalamanSimulatorCATSKD() {
       jenisFormasi,
       disabilitasSensorikNetra,
     });
+    const analisisGap = analisisKesenjanganNilaiSKD({
+      daftarSoal: daftarSoal110,
+      jawabanPeserta,
+      jenisFormasi,
+      disabilitasSensorikNetra,
+    });
 
     setHasilEvaluasiAkhir(evaluasi);
+    setHasilAnalisisGap(analisisGap);
+    if (analisisGap.tigaSubTopikPrioritas[0]) {
+      setTargetLatihanAdaptif({
+        kategori: analisisGap.tigaSubTopikPrioritas[0].kategori,
+        subTopik: analisisGap.tigaSubTopikPrioritas[0].subTopik,
+      });
+    }
     setTahapHalaman("hasil_ujian");
 
     try {
@@ -764,6 +792,170 @@ export default function HalamanSimulatorCATSKD() {
           </div>
         </section>
       )}
+
+      {/* BAGIAN ANALISIS KESENJANGAN NILAI SKD (GAP ANALYZER) */}
+      {hasilAnalisisGap && (
+        <section className="mb-8 rounded-2xl border border-slate-200 bg-white p-6 shadow-md sm:p-8">
+          <span className="text-xs font-bold uppercase tracking-wider text-blue-700">
+            Analisis Kesenjangan Nilai & Peta Penguasaan Kisi-Kisi SKD
+          </span>
+          <h2 className="mt-1 text-xl font-extrabold text-slate-900 sm:text-2xl">
+            Grafik Perbandingan Skor Anda vs Nilai Ambang Batas Resmi
+          </h2>
+          <p className="mt-1 text-xs text-slate-600 sm:text-sm">
+            {hasilAnalisisGap.rekomendasiBelajar}
+          </p>
+
+          {/* Visualisasi Grafik Batang Perbandingan */}
+          <div className="mt-5 space-y-4">
+            {hasilAnalisisGap.grafikPerbandingan.map((item) => (
+              <div
+                key={item.kode}
+                className="rounded-xl border border-slate-200 bg-slate-50 p-4"
+              >
+                <div className="mb-1.5 flex flex-wrap items-center justify-between text-xs font-bold">
+                  <span className="text-slate-900">{item.label}</span>
+                  <span className="text-slate-700">
+                    Skor Anda: <strong>{item.skorPeserta}</strong> | Ambang
+                    Batas: <strong>{item.nilaiAmbangBatas}</strong> | Maksimal:{" "}
+                    {item.skorMaksimal}
+                  </span>
+                </div>
+                <div className="relative h-4 w-full overflow-hidden rounded-full bg-slate-200">
+                  <div
+                    className={`h-full rounded-full transition-all ${
+                      item.memenuhiSyarat ? "bg-emerald-600" : "bg-rose-500"
+                    }`}
+                    style={{
+                      width: `${Math.min(
+                        100,
+                        item.persentaseTerhadapMaksimal
+                      )}%`,
+                    }}
+                  />
+                  {/* Penanda Garis Nilai Ambang Batas */}
+                  <div
+                    className="absolute top-0 h-full w-1 bg-slate-950"
+                    style={{ left: `${item.persentaseAmbangBatas}%` }}
+                    title={`Nilai Ambang Batas: ${item.nilaiAmbangBatas}`}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Tabel Peringkat Sub-Topik Kisi-Kisi dengan Akurasi Terendah */}
+          <h3 className="mb-3 mt-8 text-base font-extrabold text-slate-900">
+            Daftar Sub-Topik Kisi-Kisi Resmi Berdasarkan Akurasi Terendah
+          </h3>
+          <div className="overflow-x-auto rounded-xl border border-slate-200">
+            <table className="w-full text-left text-xs sm:text-sm">
+              <thead className="border-b border-slate-200 bg-slate-50 text-slate-700">
+                <tr>
+                  <th className="px-4 py-3 font-bold">Sub-Tes</th>
+                  <th className="px-4 py-3 font-bold">
+                    Sub-Topik Kisi-Kisi Resmi (Kepmenpan-RB 321/2024)
+                  </th>
+                  <th className="px-4 py-3 font-bold">Skor / Maks</th>
+                  <th className="px-4 py-3 font-bold">Akurasi</th>
+                  <th className="px-4 py-3 font-bold">Aksi Perbaikan</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200">
+                {hasilAnalisisGap.peringkatSubTopikTerlemah.map((sub) => (
+                  <tr key={`${sub.kategori}-${sub.subTopik}`}>
+                    <td className="px-4 py-2.5 font-bold text-blue-700">
+                      {sub.kategori}
+                    </td>
+                    <td className="px-4 py-2.5 font-medium text-slate-900">
+                      {sub.subTopik}
+                    </td>
+                    <td className="px-4 py-2.5">
+                      {sub.skorDiperoleh} / {sub.skorMaksimal}
+                    </td>
+                    <td className="px-4 py-2.5 font-bold">
+                      {sub.persentaseAkurasi}% ({sub.tingkatPenguasaan})
+                    </td>
+                    <td className="px-4 py-2.5">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setTargetLatihanAdaptif({
+                            kategori: sub.kategori,
+                            subTopik: sub.subTopik,
+                          })
+                        }
+                        className="rounded-lg bg-indigo-600 px-3 py-1 text-xs font-bold text-white hover:bg-indigo-700"
+                      >
+                        Latih Kelemahanmu
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+
+      {/* BAGIAN LATIHAN PERBAIKAN ADAPTIF (ADAPTIVE REMEDIAL DRILL) */}
+      <section className="mb-8">
+        <PanelLatihanPerbaikanAdaptif
+          kategoriAwal={targetLatihanAdaptif.kategori}
+          subTopikAwal={targetLatihanAdaptif.subTopik}
+        />
+      </section>
+
+      {/* BAGIAN PEMBAHASAN SOAL & TUTOR AI SOKRATIK */}
+      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-md sm:p-8">
+        <h2 className="text-xl font-extrabold text-slate-900 sm:text-2xl">
+          Pembahasan Lengkap & Diskusi Tutor AI Sokratik
+        </h2>
+        <p className="mt-1 text-xs text-slate-600 sm:text-sm">
+          Pelajari pembahasan resmi pada setiap butir soal atau klik tombol{" "}
+          <strong>Diskusi dengan Tutor AI Sokratik</strong> untuk dibimbing
+          secara bertahap.
+        </p>
+
+        <div className="mt-6 space-y-5">
+          {daftarSoal110.slice(0, 15).map((butir) => {
+            const jawabanUser = jawabanPeserta[butir.id];
+            const opsiTerbaik = butir.options.reduce((a, b) =>
+              b.skor > a.skor ? b : a
+            );
+            return (
+              <div
+                key={butir.id}
+                className="rounded-xl border border-slate-200 bg-slate-50 p-5"
+              >
+                <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                  <span className="font-bold text-slate-900">
+                    Soal No. {butir.nomor_urut} — {butir.category} (
+                    {butir.sub_topic})
+                  </span>
+                  <span className="rounded bg-blue-100 px-2.5 py-0.5 font-bold text-blue-800">
+                    Jawaban Anda: {jawabanUser || "Kosong"} | Kunci Skor
+                    Tertinggi: {opsiTerbaik.kunci} ({opsiTerbaik.skor} Poin)
+                  </span>
+                </div>
+
+                <p className="mt-2.5 text-sm font-medium text-slate-900">
+                  {butir.question_text}
+                </p>
+
+                <div className="mt-3 rounded-lg border border-slate-200 bg-white p-3.5 text-xs leading-relaxed text-slate-700">
+                  <strong>Pembahasan Resmi:</strong> {butir.explanation}
+                </div>
+
+                <WidgetTutorSokratik
+                  soal={butir}
+                  jawabanPeserta={jawabanUser}
+                />
+              </div>
+            );
+          })}
+        </div>
+      </section>
     </main>
   );
 }

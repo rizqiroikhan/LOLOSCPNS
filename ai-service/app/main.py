@@ -16,6 +16,10 @@ from app.ingestion import (
     proses_ekstraksi_soal_multimodal,
     validasi_dan_normalisasi_butir_soal,
 )
+from app.tutor_rag import (
+    buat_latihan_adaptif_dinamis,
+    jawab_sokratik_dengan_rag,
+)
 
 app = FastAPI(
     title="Layanan AI LOLOS CPNS",
@@ -247,3 +251,60 @@ async def endpoint_setujui_soal(permintaan: PermintaanSetujuiSoal):
         ),
         "soal": data_simpan,
     }
+
+
+class PermintaanDiskusiTutor(BaseModel):
+    pertanyaan: str
+    konteks_soal: Dict[str, Any]
+    riwayat_chat: Optional[List[Dict[str, str]]] = None
+
+
+class PermintaanLatihanAdaptif(BaseModel):
+    kategori: str = "TIU"
+    sub_topik: str = "Kemampuan Numerik - Deret Angka"
+    jumlah_soal: int = Field(default=5, ge=5, le=10)
+
+
+@app.post("/tutor/socratic")
+@app.post("/tutor/diskusi")
+async def endpoint_tutor_sokratik(permintaan: PermintaanDiskusiTutor):
+    """
+    Endpoint Tutor AI Sokratik berbasis RAG yang terhubung ke `AI_CHAT_MODEL` di `.env`.
+    """
+    try:
+        return await jawab_sokratik_dengan_rag(
+            pertanyaan_peserta=permintaan.pertanyaan,
+            konteks_soal=permintaan.konteks_soal,
+            riwayat_chat=permintaan.riwayat_chat,
+        )
+    except Exception as galat:
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "status": "gagal",
+                "pesan": f"Kendala pada layanan Tutor AI Sokratik: {str(galat)}",
+            },
+        ) from galat
+
+
+@app.post("/drill/adaptive")
+@app.post("/latihan/adaptif")
+async def endpoint_latihan_adaptif(permintaan: PermintaanLatihanAdaptif):
+    """
+    Endpoint pembuat 5–10 soal variasi baru pada `sub_topic` resmi SKD terlemah peserta.
+    """
+    try:
+        return await buat_latihan_adaptif_dinamis(
+            kategori=permintaan.kategori,
+            sub_topik=permintaan.sub_topik,
+            jumlah_soal=permintaan.jumlah_soal,
+        )
+    except Exception as galat:
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "status": "gagal",
+                "pesan": f"Kendala saat membuat soal latihan perbaikan adaptif: {str(galat)}",
+            },
+        ) from galat
+

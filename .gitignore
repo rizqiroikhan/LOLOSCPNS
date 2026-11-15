@@ -1,0 +1,47 @@
+# Dependencies
+node_modules/
+/web/node_modules/
+/web/.pnp
+/web/.pnp.js
+
+# Next.js build output
+/web/.next/
+/web/out/
+/web/build/
+
+# Python virtual environments & cache
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+/ai-service/.venv/
+/ai-service/venv/
+/ai-service/__pycache__/
+.pytest_cache/
+
+# Environment variables (Jangan pernah commit kunci rahasia)
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+/web/.env*
+!/web/.env.example
+/ai-service/.env*
+!/ai-service/.env.example
+!.env.example
+
+# Testing & coverage
+/web/coverage/
+
+# Misc
+.DS_Store
+*.pem
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.vercel
+*.tsbuildinfo
+next-env.d.ts

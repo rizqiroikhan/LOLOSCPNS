@@ -11,9 +11,28 @@
 import crypto from "node:crypto";
 import {
   DAFTAR_PAKET_LANGGANAN,
+  type MetodePembayaranResmi,
   type StatusTransaksiPembayaran,
   type TingkatLanggananPeserta,
 } from "./access-control.ts";
+
+const PETA_CHANNEL_MIDTRANS: Record<MetodePembayaranResmi, string[]> = {
+  qris: ["other_qris"],
+  va_bca: ["bca_va"],
+  va_mandiri: ["echannel"],
+  va_bni: ["bni_va"],
+  va_bri: ["bri_va"],
+};
+
+/**
+ * Memetakan kode metode pembayaran internal ke daftar `enabled_payments` Midtrans Snap
+ * agar UI Snap langsung memprioritaskan kanal yang dipilih peserta.
+ */
+export function dapatkanEnabledPaymentsMidtrans(
+  metode: MetodePembayaranResmi
+): string[] {
+  return PETA_CHANNEL_MIDTRANS[metode] || ["other_qris"];
+}
 
 export function dapatkanMidtransServerKey(kunciOpsional?: string): string | null {
   const kandidat = (kunciOpsional || process.env.MIDTRANS_SERVER_KEY || "").trim();

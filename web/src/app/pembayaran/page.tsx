@@ -40,6 +40,41 @@ interface DataPesananAktif {
   va_number: string | null;
 }
 
+const LABEL_METODE_PEMBAYARAN: Record<MetodePembayaranResmi, string> = {
+  qris: "QRIS Instan",
+  va_bca: "Virtual Account BCA",
+  va_mandiri: "Virtual Account Mandiri",
+  va_bni: "Virtual Account BNI",
+  va_bri: "Virtual Account BRI",
+};
+
+const DAFTAR_VIRTUAL_ACCOUNT: {
+  kode: Exclude<MetodePembayaranResmi, "qris">;
+  nama: string;
+  info: string;
+}[] = [
+  {
+    kode: "va_bca",
+    nama: "Virtual Account BCA",
+    info: "Verifikasi otomatis via m-BCA / myBCA / KlikBCA",
+  },
+  {
+    kode: "va_mandiri",
+    nama: "Virtual Account Mandiri",
+    info: "Livin' by Mandiri & ATM Bersama",
+  },
+  {
+    kode: "va_bni",
+    nama: "Virtual Account BNI",
+    info: "wondr / BNI Mobile Banking & ATM",
+  },
+  {
+    kode: "va_bri",
+    nama: "Virtual Account BRI",
+    info: "BRImo & ATM BRI",
+  },
+];
+
 function KontenHalamanPembayaran() {
   const searchParams = useSearchParams();
   const paketAwalQuery = searchParams.get("paket") || "paket-intensif-skd";
@@ -276,56 +311,69 @@ function KontenHalamanPembayaran() {
                   2. Pilih Metode Pembayaran Resmi
                 </h2>
               </div>
-              <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                {[
-                  {
-                    kode: "qris" as const,
-                    nama: "QRIS Instan",
-                    info: "GoPay, OVO, DANA, ShopeePay, Mobile Banking",
-                    ikon: QrCode,
-                  },
-                  {
-                    kode: "va_bca" as const,
-                    nama: "Virtual Account BCA",
-                    info: "Verifikasi otomatis via m-BCA / KlikBCA",
-                    ikon: Building2,
-                  },
-                  {
-                    kode: "va_mandiri" as const,
-                    nama: "Virtual Account Mandiri",
-                    info: "Livin' by Mandiri & ATM Bersama",
-                    ikon: Building2,
-                  },
-                  {
-                    kode: "va_bni" as const,
-                    nama: "Virtual Account BNI",
-                    info: "BNI Mobile Banking & ATM",
-                    ikon: Building2,
-                  },
-                ].map((m) => {
-                  const IkonMetode = m.ikon;
-                  const aktif = metodePembayaran === m.kode;
-                  return (
-                    <button
-                      key={m.kode}
-                      type="button"
-                      onClick={() => setMetodePembayaran(m.kode)}
-                      className={`rounded-2xl border p-4 text-left transition ${
-                        aktif
-                          ? "border-blue-600 bg-blue-50/80 text-blue-950 ring-2 ring-blue-100"
-                          : "border-slate-200 bg-white text-slate-700 hover:border-blue-200 hover:bg-slate-50"
-                      }`}
-                    >
-                      <div className="flex items-center gap-2">
-                        <IkonMetode className="h-4 w-4 text-blue-700" />
-                        <p className="text-xs font-extrabold">{m.nama}</p>
+
+              {/* Prioritas Utama: QRIS Instan */}
+              <div className="mt-4">
+                <button
+                  type="button"
+                  onClick={() => setMetodePembayaran("qris")}
+                  className={`w-full rounded-2xl border p-4 text-left transition ${
+                    metodePembayaran === "qris"
+                      ? "border-blue-600 bg-blue-50/90 text-blue-950 ring-2 ring-blue-100"
+                      : "border-blue-200 bg-blue-50/30 text-slate-800 hover:border-blue-300 hover:bg-blue-50/60"
+                  }`}
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-2.5">
+                      <span className="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-blue-700 text-white">
+                        <QrCode className="h-4 w-4" />
+                      </span>
+                      <div>
+                        <p className="text-sm font-extrabold text-slate-950">
+                          QRIS Instan
+                        </p>
+                        <p className="text-[11px] font-medium text-slate-600">
+                          Scan dari BCA mobile/myBCA, Livin&apos;, BRImo, BNI,
+                          GoPay, OVO, DANA, &amp; ShopeePay
+                        </p>
                       </div>
-                      <p className="mt-1 text-[11px] text-slate-500">
-                        {m.info}
-                      </p>
-                    </button>
-                  );
-                })}
+                    </div>
+                    <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wide text-emerald-800">
+                      Direkomendasikan • Paling Cepat
+                    </span>
+                  </div>
+                </button>
+              </div>
+
+              <div className="mt-5">
+                <p className="mb-2.5 text-xs font-bold uppercase tracking-wider text-slate-500">
+                  Atau Transfer Bank (Virtual Account)
+                </p>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {DAFTAR_VIRTUAL_ACCOUNT.map((m) => {
+                    const aktif = metodePembayaran === m.kode;
+                    return (
+                      <button
+                        key={m.kode}
+                        type="button"
+                        onClick={() => setMetodePembayaran(m.kode)}
+                        className={`rounded-2xl border p-4 text-left transition ${
+                          aktif
+                            ? "border-blue-600 bg-blue-50/80 text-blue-950 ring-2 ring-blue-100"
+                            : "border-slate-200 bg-white text-slate-700 hover:border-blue-200 hover:bg-slate-50"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <Building2 className="h-4 w-4 text-blue-700" />
+                          <p className="text-xs font-extrabold">{m.nama}</p>
+                        </div>
+                        <p className="mt-1 text-[11px] text-slate-500">
+                          {m.info}
+                        </p>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             </div>
           </section>
@@ -360,6 +408,12 @@ function KontenHalamanPembayaran() {
                       : `${paketTerpilih.kuota_tutor_harian} / hari`}
                   </span>
                 </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Metode Pembayaran</span>
+                  <span className="font-semibold text-slate-800">
+                    {LABEL_METODE_PEMBAYARAN[metodePembayaran]}
+                  </span>
+                </div>
                 <div className="flex justify-between pt-2 text-base font-extrabold text-slate-950">
                   <span>Total Pembayaran</span>
                   <span className="font-mono text-blue-700 font-numeric">
@@ -391,7 +445,7 @@ function KontenHalamanPembayaran() {
                     {sedangMemproses
                       ? "Membuat Tagihan..."
                       : profilAktif
-                        ? `Buat Pesanan (${metodePembayaran.toUpperCase()})`
+                        ? `Buat Pesanan (${LABEL_METODE_PEMBAYARAN[metodePembayaran]})`
                         : "Masuk Akun Terlebih Dahulu"}
                   </span>
                   {profilAktif && !sedangMemproses && (
@@ -449,11 +503,23 @@ function KontenHalamanPembayaran() {
                     </a>
                   )}
 
+                  {pesananAktif.qris_string && (
+                    <div className="rounded-xl border border-slate-200 bg-white p-3">
+                      <p className="text-[11px] font-bold text-slate-500">
+                        Kode QRIS (Simulasi Lokal):
+                      </p>
+                      <p className="mt-1 break-all font-mono text-[11px] text-slate-700">
+                        {pesananAktif.qris_string}
+                      </p>
+                    </div>
+                  )}
+
                   {pesananAktif.va_number && (
                     <div className="rounded-xl border border-slate-200 bg-white p-3">
                       <p className="text-[11px] font-bold text-slate-500">
-                        Nomor Virtual Account ({pesananAktif.metode_pembayaran}
-                        ):
+                        Nomor{" "}
+                        {LABEL_METODE_PEMBAYARAN[pesananAktif.metode_pembayaran]}
+                        :
                       </p>
                       <p className="mt-0.5 font-mono text-sm font-extrabold text-slate-900 font-numeric">
                         {pesananAktif.va_number}

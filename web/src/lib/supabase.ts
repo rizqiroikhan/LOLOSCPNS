@@ -36,22 +36,29 @@ export function normalisasiUrlSupabase(inputMentah?: string): string {
   }
 }
 
-export function apakahKonfigurasiSupabaseValid(): boolean {
-  const url = normalisasiUrlSupabase(process.env.NEXT_PUBLIC_SUPABASE_URL);
-  const kunci = (
-    process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-    ""
-  )
+function dapatkanServiceRoleKey(): string {
+  const serviceRole = (process.env.SUPABASE_SERVICE_ROLE_KEY || "")
     .trim()
     .replace(/^['"]+|['"]+$/g, "");
 
-  if (!url || !kunci) return false;
   if (
-    kunci.includes("masukkan_supabase") ||
-    kunci.includes("kata_sandi") ||
-    url.includes("supabase.com")
+    !serviceRole ||
+    serviceRole.length < 20 ||
+    serviceRole.includes("masukkan_supabase") ||
+    serviceRole.includes("kata_sandi")
   ) {
+    return "";
+  }
+
+  return serviceRole;
+}
+
+export function apakahKonfigurasiSupabaseValid(): boolean {
+  const url = normalisasiUrlSupabase(process.env.NEXT_PUBLIC_SUPABASE_URL);
+  const serviceRoleKey = dapatkanServiceRoleKey();
+
+  if (!url || !serviceRoleKey) return false;
+  if (url.includes("supabase.com")) {
     return false;
   }
 
@@ -79,26 +86,17 @@ export function buatKlienSupabasePublik(): SupabaseClient {
 
 /**
  * Membuat instans klien Supabase dengan hak akses penuh (Service Role) khusus untuk sisi server/Admin.
+ * Fail-closed: tidak pernah fallback ke ANON_KEY agar kebijakan RLS tetap terjaga.
  */
 export function buatKlienSupabaseServer(): SupabaseClient {
   const supabaseUrl = normalisasiUrlSupabase(
     process.env.NEXT_PUBLIC_SUPABASE_URL
   );
-  const supabaseAnonKey = (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "")
-    .trim()
-    .replace(/^['"]+|['"]+$/g, "");
-  const serviceRoleEksplisit = (process.env.SUPABASE_SERVICE_ROLE_KEY || "")
-    .trim()
-    .replace(/^['"]+|['"]+$/g, "");
-
-  const serviceRoleKey =
-    serviceRoleEksplisit && !serviceRoleEksplisit.includes("masukkan_supabase")
-      ? serviceRoleEksplisit
-      : supabaseAnonKey;
+  const serviceRoleKey = dapatkanServiceRoleKey();
 
   if (!supabaseUrl || !serviceRoleKey) {
     throw new Error(
-      "Konfigurasi server Supabase belum lengkap pada berkas lingkungan."
+      "Konfigurasi server Supabase (NEXT_PUBLIC_SUPABASE_URL dan SUPABASE_SERVICE_ROLE_KEY) belum lengkap atau tidak valid."
     );
   }
   return createClient(supabaseUrl, serviceRoleKey, {

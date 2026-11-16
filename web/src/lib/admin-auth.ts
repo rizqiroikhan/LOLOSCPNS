@@ -3,10 +3,11 @@
  *
  * Fitur:
  * - Penyimpanan aman kata sandi menggunakan `scryptSync` + garam acak per akun (`node:crypto`).
- * - Token sesi `httpOnly` bertanda tangan HMAC-SHA256 yang persisten lintas deploy.
- * - Mendukung tabel `admin_accounts` di Supabase apabila tersedia, dengan fallback otomatis
- *   ke penyimpanan lokal/memori tanpa memutus akses login apabila tabel belum dimigrasi.
- * - Akun Administrator Utama bawaan (`admin` / `Admin123!`) selalu konsisten dengan ID deterministik.
+ * - Token sesi `httpOnly` bertanda tangan HMAC-SHA256.
+ * - Menggunakan tabel `admin_accounts` di Supabase sebagai sumber kebenaran di produksi
+ *   (fail-closed apabila Supabase atau `ADMIN_SESSION_SECRET` belum dikonfigurasi),
+ *   serta berkas lokal `.data/admin-accounts.json` khusus untuk mode pengembangan.
+ * - Akun Administrator Utama awal menggunakan ID UUID deterministik agar konsisten di PostgreSQL.
  *
  * Seluruh pesan kesalahan dan validasi menggunakan Bahasa Indonesia yang baik dan benar.
  */
@@ -46,10 +47,10 @@ export interface PayloadSesiAdmin {
 }
 
 export const NAMA_COOKIE_SESI_ADMIN = "lolos_cpns_sesi_admin";
-export const ID_TETAP_ADMIN_UTAMA = "admin-utama-tetap-lolos-cpns";
+export const ID_TETAP_ADMIN_UTAMA = "00000000-0000-4000-8000-000000000001";
 export const USERNAME_TETAP_ADMIN_UTAMA = "admin";
-export const SANDI_TETAP_ADMIN_UTAMA = "Admin123!";
-const DURASI_SESI_MS = 30 * 24 * 60 * 60 * 1000; // 30 hari agar tidak logout tiap update fitur
+const SANDI_DEV_BAWAAN_ADMIN = "Admin123!";
+const DURASI_SESI_MS = 30 * 24 * 60 * 60 * 1000; // 30 hari persisten
 
 function dapatkanPathBerkasLokal(pathKustom?: string): string {
   if (pathKustom) return pathKustom;
@@ -99,6 +100,12 @@ function dapatkanKunciRahasiaSesi(): string {
     return rahasiaEksplisit;
   }
 
+  if (process.env.NODE_ENV === "production") {
+    throw new Error(
+      "Variabel lingkungan ADMIN_SESSION_SECRET wajib diatur (minimal 32 karakter acak) di lingkungan produksi."
+    );
+  }
+
   return "kunci_lokal_sesi_admin_lolos_cpns_2026_persisten";
 }
 
@@ -127,8 +134,15 @@ export function verifikasiTokenSesiAdmin(
   const [payloadBase64, tandaTanganDiterima] = token.split(".");
   if (!payloadBase64 || !tandaTanganDiterima) return null;
 
+  let kunciRahasia: string;
+  try {
+    kunciRahasia = dapatkanKunciRahasiaSesi();
+  } catch {
+    return null;
+  }
+
   const tandaTanganHarapan = crypto
-    .createHmac("sha256", dapatkanKunciRahasiaSesi())
+    .createHmac("sha256", kunciRahasia)
     .update(payloadBase64)
     .digest("base64url");
 
@@ -175,6 +189,18 @@ export function ekstrakSesiDariHeaderCookie(
 // ==============================================================================
 const memoriSementaraMap = new Map<string, DataAkunAdminTersimpan[]>();
 
+function pastikanLingkunganPenyimpananAdminSiap(pathKustom?: string): void {
+  if (
+    !pathKustom &&
+    process.env.NODE_ENV === "production" &&
+    !apakahSupabaseTersedia()
+  ) {
+    throw new Error(
+      "Basis data produksi Supabase (NEXT_PUBLIC_SUPABASE_URL dan SUPABASE_SERVICE_ROLE_KEY) wajib terkonfigurasi untuk manajemen akun admin."
+    );
+  }
+}
+
 function buatAkunAdminAwalBootstrap(): DataAkunAdminTersimpan {
   const usernameAwal = (
     process.env.ADMIN_BOOTSTRAP_USERNAME || USERNAME_TETAP_ADMIN_UTAMA
@@ -185,7 +211,13 @@ function buatAkunAdminAwalBootstrap(): DataAkunAdminTersimpan {
   const kataSandiValid =
     envKataSandi.length >= 8 && !envKataSandi.includes("ganti_kata_sandi");
 
-  const kataSandiAwal = kataSandiValid ? envKataSandi : SANDI_TETAP_ADMIN_UTAMA;
+  if (!kataSandiValid && process.env.NODE_ENV === "production") {
+    throw new Error(
+      "Variabel lingkungan ADMIN_BOOTSTRAP_PASSWORD wajib diatur (minimal 8 karakter) di lingkungan produksi."
+    );
+  }
+
+  const kataSandiAwal = kataSandiValid ? envKataSandi : SANDI_DEV_BAWAAN_ADMIN;
 
   return {
     id: ID_TETAP_ADMIN_UTAMA,
@@ -258,25 +290,50 @@ function keProfilPublik(
 async function bacaSemuaAkun(
   pathKustom?: string
 ): Promise<DataAkunAdminTersimpan[]> {
-  if (!pathKustom && apakahSupabaseTersedia()) {
-    try {
-      const { buatKlienSupabaseServer } = await import("./supabase.ts");
-      const supabase = buatKlienSupabaseServer();
-      const { data, error } = await supabase
-        .from("admin_accounts")
-        .select("*")
-        .order("created_at", { ascending: true });
+  pastikanLingkunganPenyimpananAdminSiap(pathKustom);
 
-      if (!error && Array.isArray(data)) {
-        if (data.length === 0) {
-          const akunAwal = buatAkunAdminAwalBootstrap();
-          await supabase.from("admin_accounts").insert(akunAwal);
-          return [akunAwal];
+  if (!pathKustom && apakahSupabaseTersedia()) {
+    const { buatKlienSupabaseServer } = await import("./supabase.ts");
+    const supabase = buatKlienSupabaseServer();
+    const { data, error } = await supabase
+      .from("admin_accounts")
+      .select("*")
+      .order("created_at", { ascending: true });
+
+    if (error) {
+      if (process.env.NODE_ENV === "production") {
+        throw new Error(
+          `Gagal membaca daftar akun admin dari basis data: ${error.message}`
+        );
+      }
+    } else if (Array.isArray(data)) {
+      if (data.length === 0) {
+        const akunAwal = buatAkunAdminAwalBootstrap();
+        const { data: tersisip, error: errSisip } = await supabase
+          .from("admin_accounts")
+          .insert(akunAwal)
+          .select("*")
+          .single();
+        if (!errSisip && tersisip) {
+          return [tersisip as DataAkunAdminTersimpan];
         }
+        const { data: ulang } = await supabase
+          .from("admin_accounts")
+          .select("*")
+          .order("created_at", { ascending: true });
+        if (Array.isArray(ulang) && ulang.length > 0) {
+          return ulang as DataAkunAdminTersimpan[];
+        }
+        if (process.env.NODE_ENV === "production") {
+          throw new Error(
+            `Gagal menginisialisasi akun admin awal di basis data: ${
+              errSisip?.message || "Kesalahan tidak diketahui"
+            }`
+          );
+        }
+      } else {
         return data as DataAkunAdminTersimpan[];
       }
-    } catch {
-      // Fallback otomatis ke store lokal/memori apabila Supabase belum siap
     }
   }
 
@@ -338,16 +395,7 @@ export async function verifikasiLoginAdmin(parameter: {
   const daftar = await bacaSemuaAkun(parameter.pathKustom);
   const akun = daftar.find((item) => item.username === usernameBersih);
 
-  // Izinkan kata sandi tersimpan ATAU kata sandi tetap `Admin123!` untuk akun sistem `admin`
-  const cocokHash =
-    Boolean(akun) && verifikasiKataSandiAdmin(kataSandi, akun!.password_hash);
-  const cocokSandiTetapBawaan =
-    Boolean(akun) &&
-    akun!.username === USERNAME_TETAP_ADMIN_UTAMA &&
-    akun!.dibuat_oleh === "sistem" &&
-    kataSandi === SANDI_TETAP_ADMIN_UTAMA;
-
-  if (!akun || (!cocokHash && !cocokSandiTetapBawaan)) {
+  if (!akun || !verifikasiKataSandiAdmin(kataSandi, akun.password_hash)) {
     return {
       berhasil: false,
       pesan: "Username atau kata sandi admin tidak sesuai.",
@@ -418,19 +466,19 @@ export async function tambahAkunAdmin(parameter: {
   };
 
   if (!parameter.pathKustom && apakahSupabaseTersedia()) {
-    try {
-      const { buatKlienSupabaseServer } = await import("./supabase.ts");
-      const supabase = buatKlienSupabaseServer();
-      const { error } = await supabase.from("admin_accounts").insert(entriBaru);
-      if (!error) {
-        return {
-          berhasil: true,
-          pesan: `Akun admin "${entriBaru.username}" berhasil ditambahkan.`,
-          akunBaru: keProfilPublik(entriBaru),
-        };
+    const { buatKlienSupabaseServer } = await import("./supabase.ts");
+    const supabase = buatKlienSupabaseServer();
+    const { error } = await supabase.from("admin_accounts").insert(entriBaru);
+    if (error) {
+      if (process.env.NODE_ENV === "production") {
+        throw new Error(`Gagal menyimpan akun admin ke basis data: ${error.message}`);
       }
-    } catch {
-      // Fallback ke penyimpanan lokal/memori
+    } else {
+      return {
+        berhasil: true,
+        pesan: `Akun admin "${entriBaru.username}" berhasil ditambahkan.`,
+        akunBaru: keProfilPublik(entriBaru),
+      };
     }
   }
 
@@ -472,21 +520,21 @@ export async function ubahKataSandiAkunAdmin(parameter: {
   const hashBaru = hashKataSandiAdmin(kataSandiBaru);
 
   if (!parameter.pathKustom && apakahSupabaseTersedia()) {
-    try {
-      const { buatKlienSupabaseServer } = await import("./supabase.ts");
-      const supabase = buatKlienSupabaseServer();
-      const { error } = await supabase
-        .from("admin_accounts")
-        .update({ password_hash: hashBaru, dibuat_oleh: "diperbarui_manual" })
-        .eq("id", parameter.idTarget);
-      if (!error) {
-        return {
-          berhasil: true,
-          pesan: `Kata sandi untuk akun "${target.username}" berhasil diperbarui.`,
-        };
+    const { buatKlienSupabaseServer } = await import("./supabase.ts");
+    const supabase = buatKlienSupabaseServer();
+    const { error } = await supabase
+      .from("admin_accounts")
+      .update({ password_hash: hashBaru, dibuat_oleh: "diperbarui_manual" })
+      .eq("id", parameter.idTarget);
+    if (error) {
+      if (process.env.NODE_ENV === "production") {
+        throw new Error(`Gagal memperbarui kata sandi admin: ${error.message}`);
       }
-    } catch {
-      // Fallback ke penyimpanan lokal/memori
+    } else {
+      return {
+        berhasil: true,
+        pesan: `Kata sandi untuk akun "${target.username}" berhasil diperbarui.`,
+      };
     }
   }
 
@@ -538,21 +586,21 @@ export async function hapusAkunAdmin(parameter: {
   }
 
   if (!parameter.pathKustom && apakahSupabaseTersedia()) {
-    try {
-      const { buatKlienSupabaseServer } = await import("./supabase.ts");
-      const supabase = buatKlienSupabaseServer();
-      const { error } = await supabase
-        .from("admin_accounts")
-        .delete()
-        .eq("id", parameter.idTarget);
-      if (!error) {
-        return {
-          berhasil: true,
-          pesan: `Akun admin "${target.username}" berhasil dihapus dari sistem.`,
-        };
+    const { buatKlienSupabaseServer } = await import("./supabase.ts");
+    const supabase = buatKlienSupabaseServer();
+    const { error } = await supabase
+      .from("admin_accounts")
+      .delete()
+      .eq("id", parameter.idTarget);
+    if (error) {
+      if (process.env.NODE_ENV === "production") {
+        throw new Error(`Gagal menghapus akun admin dari basis data: ${error.message}`);
       }
-    } catch {
-      // Fallback ke penyimpanan lokal/memori
+    } else {
+      return {
+        berhasil: true,
+        pesan: `Akun admin "${target.username}" berhasil dihapus dari sistem.`,
+      };
     }
   }
 

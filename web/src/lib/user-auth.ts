@@ -54,8 +54,16 @@ function apakahSupabaseTersediaUntukPeserta(): boolean {
   return apakahKonfigurasiSupabaseValid();
 }
 
-function pastikanLingkunganPenyimpananPesertaSiap(_pathKustom?: string): void {
-  // Menggunakan Supabase jika terkonfigurasi valid, atau fallback otomatis ke store lokal/memori
+function pastikanLingkunganPenyimpananPesertaSiap(pathKustom?: string): void {
+  if (
+    !pathKustom &&
+    process.env.NODE_ENV === "production" &&
+    !apakahSupabaseTersediaUntukPeserta()
+  ) {
+    throw new Error(
+      "Basis data produksi Supabase (NEXT_PUBLIC_SUPABASE_URL dan SUPABASE_SERVICE_ROLE_KEY) wajib terkonfigurasi untuk akun peserta."
+    );
+  }
 }
 
 function dapatkanKunciRahasiaSesiPeserta(): string {
@@ -67,6 +75,12 @@ function dapatkanKunciRahasiaSesiPeserta(): string {
 
   if (!adalahPlaceholder) {
     return rahasiaEksplisit;
+  }
+
+  if (process.env.NODE_ENV === "production") {
+    throw new Error(
+      "Variabel lingkungan USER_SESSION_SECRET wajib diatur (minimal 32 karakter acak) di lingkungan produksi."
+    );
   }
 
   return "kunci_pengembangan_lokal_sesi_peserta_lolos_cpns_2026";
@@ -167,8 +181,15 @@ export function verifikasiTokenSesiPeserta(
   const [payloadBase64, tandaTanganDiterima] = token.split(".");
   if (!payloadBase64 || !tandaTanganDiterima) return null;
 
+  let kunciRahasia: string;
+  try {
+    kunciRahasia = dapatkanKunciRahasiaSesiPeserta();
+  } catch {
+    return null;
+  }
+
   const tandaTanganHarapan = crypto
-    .createHmac("sha256", dapatkanKunciRahasiaSesiPeserta())
+    .createHmac("sha256", kunciRahasia)
     .update(payloadBase64)
     .digest("base64url");
 
@@ -193,22 +214,23 @@ async function cariPesertaBerdasarkanEmail(
   emailBersih: string,
   pathKustom?: string
 ): Promise<DataAkunPesertaTersimpan | null> {
-  if (!pathKustom && apakahSupabaseTersediaUntukPeserta()) {
-    try {
-      const { buatKlienSupabaseServer } = await import("./supabase.ts");
-      const supabase = buatKlienSupabaseServer();
-      const { data, error } = await supabase
-        .from("user_accounts")
-        .select("*")
-        .eq("email", emailBersih)
-        .maybeSingle();
+  pastikanLingkunganPenyimpananPesertaSiap(pathKustom);
 
-      if (!error && data) {
-        return data as DataAkunPesertaTersimpan;
+  if (!pathKustom && apakahSupabaseTersediaUntukPeserta()) {
+    const { buatKlienSupabaseServer } = await import("./supabase.ts");
+    const supabase = buatKlienSupabaseServer();
+    const { data, error } = await supabase
+      .from("user_accounts")
+      .select("*")
+      .eq("email", emailBersih)
+      .maybeSingle();
+
+    if (error) {
+      if (process.env.NODE_ENV === "production") {
+        throw new Error(`Gagal membaca akun peserta: ${error.message}`);
       }
-      if (!error && !data) return null;
-    } catch {
-      // Fallback ke store lokal/memori
+    } else {
+      return (data as DataAkunPesertaTersimpan | null) ?? null;
     }
   }
 
@@ -220,22 +242,25 @@ export async function cariPesertaBerdasarkanId(
   userId: string,
   pathKustom?: string
 ): Promise<ProfilAkunPesertaPublik | null> {
-  if (!pathKustom && apakahSupabaseTersediaUntukPeserta()) {
-    try {
-      const { buatKlienSupabaseServer } = await import("./supabase.ts");
-      const supabase = buatKlienSupabaseServer();
-      const { data, error } = await supabase
-        .from("user_accounts")
-        .select("*")
-        .eq("id", userId)
-        .maybeSingle();
+  pastikanLingkunganPenyimpananPesertaSiap(pathKustom);
 
-      if (!error && data) {
-        return keProfilPublikPeserta(data as DataAkunPesertaTersimpan);
+  if (!pathKustom && apakahSupabaseTersediaUntukPeserta()) {
+    const { buatKlienSupabaseServer } = await import("./supabase.ts");
+    const supabase = buatKlienSupabaseServer();
+    const { data, error } = await supabase
+      .from("user_accounts")
+      .select("*")
+      .eq("id", userId)
+      .maybeSingle();
+
+    if (error) {
+      if (process.env.NODE_ENV === "production") {
+        throw new Error(`Gagal membaca profil peserta: ${error.message}`);
       }
-      if (!error && !data) return null;
-    } catch {
-      // Fallback ke store lokal/memori
+    } else {
+      return data
+        ? keProfilPublikPeserta(data as DataAkunPesertaTersimpan)
+        : null;
     }
   }
 
@@ -328,21 +353,21 @@ export async function daftarPesertaBaru(parameter: {
   };
 
   if (!parameter.pathKustom && apakahSupabaseTersediaUntukPeserta()) {
-    try {
-      const { buatKlienSupabaseServer } = await import("./supabase.ts");
-      const supabase = buatKlienSupabaseServer();
-      const { error } = await supabase.from("user_accounts").insert(entriBaru);
-      if (!error) {
-        const profil = keProfilPublikPeserta(entriBaru);
-        return {
-          berhasil: true,
-          pesan: "Pendaftaran akun peserta berhasil. Selamat berlatih SKD!",
-          profil,
-          tokenSesi: buatTokenSesiPeserta(profil),
-        };
+    const { buatKlienSupabaseServer } = await import("./supabase.ts");
+    const supabase = buatKlienSupabaseServer();
+    const { error } = await supabase.from("user_accounts").insert(entriBaru);
+    if (error) {
+      if (process.env.NODE_ENV === "production") {
+        throw new Error(`Gagal mendaftarkan peserta: ${error.message}`);
       }
-    } catch {
-      // Fallback ke store lokal/memori
+    } else {
+      const profil = keProfilPublikPeserta(entriBaru);
+      return {
+        berhasil: true,
+        pesan: "Pendaftaran akun peserta berhasil. Selamat berlatih SKD!",
+        profil,
+        tokenSesi: buatTokenSesiPeserta(profil),
+      };
     }
   }
 
@@ -425,25 +450,25 @@ export async function perbaruiTingkatLanggananPeserta(parameter: {
       : parameter.tingkatBaru;
 
   if (!parameter.pathKustom && apakahSupabaseTersediaUntukPeserta()) {
-    try {
-      const { buatKlienSupabaseServer } = await import("./supabase.ts");
-      const supabase = buatKlienSupabaseServer();
-      const { data, error } = await supabase
-        .from("user_accounts")
-        .update({
-          tingkat_langganan: tingkatFinal,
-          aktif_hingga: aktifHingga,
-          updated_at: sekarang.toISOString(),
-        })
-        .eq("id", parameter.userId)
-        .select("*")
-        .single();
+    const { buatKlienSupabaseServer } = await import("./supabase.ts");
+    const supabase = buatKlienSupabaseServer();
+    const { data, error } = await supabase
+      .from("user_accounts")
+      .update({
+        tingkat_langganan: tingkatFinal,
+        aktif_hingga: aktifHingga,
+        updated_at: sekarang.toISOString(),
+      })
+      .eq("id", parameter.userId)
+      .select("*")
+      .single();
 
-      if (!error && data) {
-        return keProfilPublikPeserta(data as DataAkunPesertaTersimpan);
+    if (error) {
+      if (process.env.NODE_ENV === "production") {
+        throw new Error(`Gagal memperbarui langganan: ${error.message}`);
       }
-    } catch {
-      // Fallback ke store lokal/memori
+    } else if (data) {
+      return keProfilPublikPeserta(data as DataAkunPesertaTersimpan);
     }
   }
 

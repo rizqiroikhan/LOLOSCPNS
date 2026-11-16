@@ -11,6 +11,7 @@ const METODE_RESMI = new Set<MetodePembayaranResmi>([
   "va_bca",
   "va_mandiri",
   "va_bni",
+  "va_bri",
 ]);
 
 export async function POST(request: Request) {

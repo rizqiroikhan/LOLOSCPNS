@@ -3,7 +3,13 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { describe, it } from "node:test";
-import { periksaHakAksesManajemenAdmin } from "../admin-auth.ts";
+import {
+  bacaDaftarAkunAdminPublik,
+  buatTokenSesiAdmin,
+  ID_TETAP_ADMIN_UTAMA,
+  periksaHakAksesManajemenAdmin,
+  verifikasiTokenSesiAdmin,
+} from "../admin-auth.ts";
 import {
   BATAS_UNGGAH_BERKAS_BYTES,
   validasiBerkasUnggahanAdmin,
@@ -19,14 +25,21 @@ import {
 import { periksaKesehatanLayanan } from "../health-check.ts";
 import {
   buatSignatureMidtrans,
+  dapatkanEnabledPaymentsMidtrans,
   dapatkanMidtransServerKey,
   verifikasiWebhookPembayaran,
 } from "../payment-security.ts";
+import {
+  apakahKonfigurasiSupabaseValid,
+  buatKlienSupabaseServer,
+  normalisasiUrlSupabase,
+} from "../supabase.ts";
 import {
   BANK_SOAL_SKB_TERPADU,
   bersihkanKunciJawabanSKB,
 } from "../skb-question-bank.ts";
 import {
+  buatTokenSesiPeserta,
   daftarPesertaBaru,
   perbaruiTingkatLanggananPeserta,
   verifikasiLoginPeserta,
@@ -384,6 +397,102 @@ describe("Keamanan & Kelengkapan Komersial P0 — Bank Soal, RBAC, Pembayaran, A
       } else {
         delete process.env.USER_SESSION_SECRET;
       }
+    }
+  });
+
+  it("memetakan kanal Midtrans Snap dengan prioritas QRIS dan tetap mempertahankan VA BCA serta bank lainnya", () => {
+    assert.deepEqual(dapatkanEnabledPaymentsMidtrans("qris"), ["other_qris"]);
+    assert.deepEqual(dapatkanEnabledPaymentsMidtrans("va_bca"), ["bca_va"]);
+    assert.deepEqual(dapatkanEnabledPaymentsMidtrans("va_mandiri"), ["echannel"]);
+    assert.deepEqual(dapatkanEnabledPaymentsMidtrans("va_bni"), ["bni_va"]);
+    assert.deepEqual(dapatkanEnabledPaymentsMidtrans("va_bri"), ["bri_va"]);
+  });
+
+  it("menjaga fail-closed guard produksi untuk sesi admin/peserta, UUID admin, dan larangan fallback ANON_KEY Supabase", async () => {
+    assert.match(
+      ID_TETAP_ADMIN_UTAMA,
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    );
+    assert.equal(
+      normalisasiUrlSupabase("https://supabase.com/dashboard/project/xyzabc123/editor"),
+      "https://xyzabc123.supabase.co"
+    );
+
+    const envAsli = process.env.NODE_ENV;
+    const urlAsli = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const anonAsli = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    const serviceAsli = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const adminSecretAsli = process.env.ADMIN_SESSION_SECRET;
+    const userSecretAsli = process.env.USER_SESSION_SECRET;
+
+    try {
+      // Pastikan token lokal yang dibuat di mode dev tidak dapat memalsukan sesi produksi
+      const tokenDevAdmin = buatTokenSesiAdmin({
+        id: ID_TETAP_ADMIN_UTAMA,
+        username: "admin",
+        nama_lengkap: "Administrator Utama",
+        peran: "admin_utama",
+        dibuat_oleh: "sistem",
+        created_at: "2026-01-01T00:00:00.000Z",
+      });
+      const tokenDevPeserta = buatTokenSesiPeserta({
+        id: "user-123",
+        email: "peserta@contoh.id",
+      });
+
+      (process.env as Record<string, string | undefined>).NODE_ENV = "production";
+      process.env.NEXT_PUBLIC_SUPABASE_URL = "https://proyektest.supabase.co";
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "anon_key_panjang_untuk_pengujian_rls_123456";
+      delete process.env.SUPABASE_SERVICE_ROLE_KEY;
+      delete process.env.ADMIN_SESSION_SECRET;
+      delete process.env.USER_SESSION_SECRET;
+
+      // Jangan pernah fallback ke ANON_KEY saat SERVICE_ROLE_KEY kosong
+      assert.equal(apakahKonfigurasiSupabaseValid(), false);
+      assert.throws(() => buatKlienSupabaseServer());
+
+      // Wajib tolak pembuatan token tanpa secret dan tolak token dev di produksi
+      assert.throws(() =>
+        buatTokenSesiAdmin({
+          id: ID_TETAP_ADMIN_UTAMA,
+          username: "admin",
+          nama_lengkap: "Administrator Utama",
+          peran: "admin_utama",
+          dibuat_oleh: "sistem",
+          created_at: "2026-01-01T00:00:00.000Z",
+        })
+      );
+      assert.equal(verifikasiTokenSesiAdmin(tokenDevAdmin), null);
+
+      assert.throws(() =>
+        buatTokenSesiPeserta({
+          id: "user-123",
+          email: "peserta@contoh.id",
+        })
+      );
+      assert.equal(verifikasiTokenSesiPeserta(tokenDevPeserta), null);
+
+      // Jangan pernah fallback ke RAM/disk saat DB tidak tersedia di produksi
+      await assert.rejects(() => bacaDaftarAkunAdminPublik());
+      await assert.rejects(() =>
+        daftarPesertaBaru({
+          email: "uji@contoh.id",
+          namaLengkap: "Peserta Uji",
+          kataSandi: "SandiKuat123!",
+        })
+      );
+    } finally {
+      (process.env as Record<string, string | undefined>).NODE_ENV = envAsli;
+      if (urlAsli !== undefined) process.env.NEXT_PUBLIC_SUPABASE_URL = urlAsli;
+      else delete process.env.NEXT_PUBLIC_SUPABASE_URL;
+      if (anonAsli !== undefined) process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = anonAsli;
+      else delete process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+      if (serviceAsli !== undefined) process.env.SUPABASE_SERVICE_ROLE_KEY = serviceAsli;
+      else delete process.env.SUPABASE_SERVICE_ROLE_KEY;
+      if (adminSecretAsli !== undefined) process.env.ADMIN_SESSION_SECRET = adminSecretAsli;
+      else delete process.env.ADMIN_SESSION_SECRET;
+      if (userSecretAsli !== undefined) process.env.USER_SESSION_SECRET = userSecretAsli;
+      else delete process.env.USER_SESSION_SECRET;
     }
   });
 });

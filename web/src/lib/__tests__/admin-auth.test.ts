@@ -128,5 +128,27 @@ describe("Sistem Autentikasi & Manajemen Multi-Admin Panel", () => {
 
     const daftarAkhir = await bacaDaftarAkunAdminPublik(pathStoreUji);
     assert.equal(daftarAkhir.length, 2);
+
+    // Ubah kata sandi admin utama dan pastikan sandi lama tidak lagi diterima (tanpa backdoor statis)
+    const ubahUtama = await ubahKataSandiAkunAdmin({
+      idTarget: adminUtama.id,
+      kataSandiBaru: "SandiUtamaBaru99!",
+      pathKustom: pathStoreUji,
+    });
+    assert.equal(ubahUtama.berhasil, true);
+
+    const loginSandiLama = await verifikasiLoginAdmin({
+      username: "admin",
+      kataSandi: "Admin123!",
+      pathKustom: pathStoreUji,
+    });
+    assert.equal(loginSandiLama.berhasil, false);
+
+    const loginSandiBaru = await verifikasiLoginAdmin({
+      username: "admin",
+      kataSandi: "SandiUtamaBaru99!",
+      pathKustom: pathStoreUji,
+    });
+    assert.equal(loginSandiBaru.berhasil, true);
   });
 });

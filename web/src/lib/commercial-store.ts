@@ -17,6 +17,7 @@ import type {
 } from "./access-control.ts";
 import {
   apakahMidtransTerkonfigurasiNyata,
+  dapatkanEnabledPaymentsMidtrans,
   dapatkanMidtransServerKey,
 } from "./payment-security.ts";
 import { perbaruiTingkatLanggananPeserta } from "./user-auth.ts";
@@ -130,6 +131,29 @@ export function tanggalHariIniJakarta(): string {
   }).format(new Date());
 }
 
+async function kirimPermintaanSnapMidtrans(parameter: {
+  endpointSnap: string;
+  authBasic: string;
+  payloadDasar: Record<string, unknown>;
+  enabledPayments?: string[];
+}): Promise<Response> {
+  const muatan =
+    parameter.enabledPayments && parameter.enabledPayments.length > 0
+      ? { ...parameter.payloadDasar, enabled_payments: parameter.enabledPayments }
+      : parameter.payloadDasar;
+
+  return fetch(parameter.endpointSnap, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+      Authorization: `Basic ${parameter.authBasic}`,
+    },
+    body: JSON.stringify(muatan),
+    signal: AbortSignal.timeout(12000),
+  });
+}
+
 // ==============================================================================
 // 1. INTEGRASI MIDTRANS SNAP & PENYIMPANAN PESANAN PEMBAYARAN
 // ==============================================================================
@@ -175,38 +199,49 @@ export async function buatDanSimpanPesananPembayaran(parameter: {
       process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
     ).replace(/\/+$/, "");
 
-    const resSnap = await fetch(endpointSnap, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-        Authorization: `Basic ${authBasic}`,
+    const payloadDasar = {
+      transaction_details: {
+        order_id: orderId,
+        gross_amount: parameter.nominalIdr,
       },
-      body: JSON.stringify({
-        transaction_details: {
-          order_id: orderId,
-          gross_amount: parameter.nominalIdr,
+      item_details: [
+        {
+          id: parameter.paketId,
+          price: parameter.nominalIdr,
+          quantity: 1,
+          name: parameter.judulPaket.slice(0, 50),
         },
-        item_details: [
-          {
-            id: parameter.paketId,
-            price: parameter.nominalIdr,
-            quantity: 1,
-            name: parameter.judulPaket.slice(0, 50),
-          },
-        ],
-        customer_details: {
-          first_name: parameter.namaPeserta,
-          email: parameter.emailPeserta,
-        },
-        callbacks: {
-          finish: `${appUrl}/pembayaran?paket=${encodeURIComponent(
-            parameter.paketId
-          )}&order_id=${encodeURIComponent(orderId)}`,
-        },
-      }),
-      signal: AbortSignal.timeout(12000),
+      ],
+      customer_details: {
+        first_name: parameter.namaPeserta,
+        email: parameter.emailPeserta,
+      },
+      callbacks: {
+        finish: `${appUrl}/pembayaran?paket=${encodeURIComponent(
+          parameter.paketId
+        )}&order_id=${encodeURIComponent(orderId)}`,
+      },
+    };
+
+    const enabledPayments = dapatkanEnabledPaymentsMidtrans(
+      parameter.metodePembayaran
+    );
+    let resSnap = await kirimPermintaanSnapMidtrans({
+      endpointSnap,
+      authBasic,
+      payloadDasar,
+      enabledPayments,
     });
+
+    // Jika kanal spesifik (mis. VA BCA pada Starter Pack) belum aktif di akun Midtrans,
+    // ulangi tanpa batasan kanal agar peserta tetap dapat menyelesaikan pembayaran via QRIS/kanal aktif.
+    if (!resSnap.ok && resSnap.status >= 400 && resSnap.status < 500) {
+      resSnap = await kirimPermintaanSnapMidtrans({
+        endpointSnap,
+        authBasic,
+        payloadDasar,
+      });
+    }
 
     if (!resSnap.ok) {
       const detail = await resSnap.text();
@@ -226,6 +261,7 @@ export async function buatDanSimpanPesananPembayaran(parameter: {
     modeSimulasiLokal = true;
   }
 
+  const adalahQris = parameter.metodePembayaran === "qris";
   const pesananBaru: PesananPembayaranTersimpan = {
     id: crypto.randomUUID(),
     order_id: orderId,
@@ -237,12 +273,14 @@ export async function buatDanSimpanPesananPembayaran(parameter: {
     status_transaksi: "menunggu_pembayaran",
     snap_token: snapToken,
     snap_redirect_url: snapRedirectUrl,
-    qris_string: modeSimulasiLokal
-      ? `00020101021226660014ID.CO.LOLOSCPNS.WWW011893600914${orderId}5204581253033605405${parameter.nominalIdr}5802ID5910LOLOS CPNS6007JAKARTA6304ABCD`
-      : null,
-    va_number: modeSimulasiLokal
-      ? `88010${crypto.randomInt(1000000000, 9999999999)}`
-      : null,
+    qris_string:
+      modeSimulasiLokal && adalahQris
+        ? `00020101021226660014ID.CO.LOLOSCPNS.WWW011893600914${orderId}5204581253033605405${parameter.nominalIdr}5802ID5910LOLOS CPNS6007JAKARTA6304ABCD`
+        : null,
+    va_number:
+      modeSimulasiLokal && !adalahQris
+        ? `88010${crypto.randomInt(1000000000, 9999999999)}`
+        : null,
     paid_at: null,
     created_at: new Date().toISOString(),
   };
@@ -278,10 +316,24 @@ export async function buatDanSimpanPesananPembayaran(parameter: {
   return { pesanan: pesananBaru, modeSimulasiLokal };
 }
 
+function pastikanSupabaseKomersialSiap(pathKustom?: string): void {
+  if (
+    !pathKustom &&
+    process.env.NODE_ENV === "production" &&
+    !apakahSupabaseTersediaKomersial()
+  ) {
+    throw new Error(
+      "Basis data produksi Supabase (NEXT_PUBLIC_SUPABASE_URL dan SUPABASE_SERVICE_ROLE_KEY) wajib terkonfigurasi."
+    );
+  }
+}
+
 export async function ambilPesananBerdasarkanOrderId(
   orderId: string,
   pathKustom?: string
 ): Promise<PesananPembayaranTersimpan | null> {
+  pastikanSupabaseKomersialSiap(pathKustom);
+
   if (!pathKustom && apakahSupabaseTersediaKomersial()) {
     const { buatKlienSupabaseServer } = await import("./supabase.ts");
     const supabase = buatKlienSupabaseServer();
@@ -291,10 +343,13 @@ export async function ambilPesananBerdasarkanOrderId(
       .eq("order_id", orderId)
       .maybeSingle();
 
-    if (!error && data) {
-      return data as PesananPembayaranTersimpan;
+    if (error) {
+      if (process.env.NODE_ENV === "production") {
+        throw new Error(`Gagal membaca pesanan pembayaran: ${error.message}`);
+      }
+    } else {
+      return (data as PesananPembayaranTersimpan | null) ?? null;
     }
-    if (!error && !data) return null;
   }
 
   const store = bacaStoreLokal(pathKustom);
@@ -370,6 +425,8 @@ export async function bacaPesananMilikPeserta(
   userId: string,
   pathKustom?: string
 ): Promise<PesananPembayaranTersimpan[]> {
+  pastikanSupabaseKomersialSiap(pathKustom);
+
   if (!pathKustom && apakahSupabaseTersediaKomersial()) {
     const { buatKlienSupabaseServer } = await import("./supabase.ts");
     const supabase = buatKlienSupabaseServer();
@@ -380,7 +437,11 @@ export async function bacaPesananMilikPeserta(
       .order("created_at", { ascending: false })
       .limit(20);
 
-    if (!error && Array.isArray(data)) {
+    if (error) {
+      if (process.env.NODE_ENV === "production") {
+        throw new Error(`Gagal membaca riwayat pesanan: ${error.message}`);
+      }
+    } else if (Array.isArray(data)) {
       return data as PesananPembayaranTersimpan[];
     }
   }
@@ -396,6 +457,7 @@ export async function bacaPemakaianAIHariIni(
   userKey: string,
   pathKustom?: string
 ): Promise<number> {
+  pastikanSupabaseKomersialSiap(pathKustom);
   const tanggal = tanggalHariIniJakarta();
 
   if (!pathKustom && apakahSupabaseTersediaKomersial()) {
@@ -408,10 +470,13 @@ export async function bacaPemakaianAIHariIni(
       .eq("tanggal", tanggal)
       .maybeSingle();
 
-    if (!error && data) {
-      return Number(data.jumlah_pemakaian || 0);
+    if (error) {
+      if (process.env.NODE_ENV === "production") {
+        throw new Error(`Gagal membaca kuota AI harian: ${error.message}`);
+      }
+    } else {
+      return Number(data?.jumlah_pemakaian || 0);
     }
-    if (!error && !data) return 0;
   }
 
   const store = bacaStoreLokal(pathKustom);
@@ -422,6 +487,7 @@ export async function tambahPemakaianAIHariIni(
   userKey: string,
   pathKustom?: string
 ): Promise<number> {
+  pastikanSupabaseKomersialSiap(pathKustom);
   const tanggal = tanggalHariIniJakarta();
   const saatIni = await bacaPemakaianAIHariIni(userKey, pathKustom);
   const baru = saatIni + 1;
@@ -438,7 +504,13 @@ export async function tambahPemakaianAIHariIni(
       },
       { onConflict: "user_key,tanggal" }
     );
-    if (!error) return baru;
+    if (error) {
+      if (process.env.NODE_ENV === "production") {
+        throw new Error(`Gagal mencatat pemakaian kuota AI: ${error.message}`);
+      }
+    } else {
+      return baru;
+    }
   }
 
   const store = bacaStoreLokal(pathKustom);
@@ -462,6 +534,8 @@ export async function simpanRiwayatTryoutPeserta(parameter: {
   diagnosticSummary: string;
   pathKustom?: string;
 }): Promise<boolean> {
+  pastikanSupabaseKomersialSiap(parameter.pathKustom);
+
   const entri: RiwayatTryoutRingkas = {
     id: crypto.randomUUID(),
     user_id: parameter.userId,
@@ -495,6 +569,7 @@ export async function simpanRiwayatTryoutPeserta(parameter: {
         finished_at: entri.finished_at,
       });
       if (!error) return true;
+      if (process.env.NODE_ENV === "production") return false;
     } catch {
       if (process.env.NODE_ENV === "production") return false;
     }
@@ -511,6 +586,8 @@ export async function bacaRiwayatTryoutMilikPeserta(
   userId: string,
   pathKustom?: string
 ): Promise<RiwayatTryoutRingkas[]> {
+  pastikanSupabaseKomersialSiap(pathKustom);
+
   if (!pathKustom && apakahSupabaseTersediaKomersial()) {
     const { buatKlienSupabaseServer } = await import("./supabase.ts");
     const supabase = buatKlienSupabaseServer();
@@ -523,7 +600,11 @@ export async function bacaRiwayatTryoutMilikPeserta(
       .order("finished_at", { ascending: false })
       .limit(20);
 
-    if (!error && Array.isArray(data)) {
+    if (error) {
+      if (process.env.NODE_ENV === "production") {
+        throw new Error(`Gagal membaca riwayat tryout: ${error.message}`);
+      }
+    } else if (Array.isArray(data)) {
       return data as RiwayatTryoutRingkas[];
     }
   }

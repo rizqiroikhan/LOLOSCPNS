@@ -11,6 +11,7 @@ from typing import Any, Dict, List, Optional
 
 from app.ai_provider import UnifiedAIProvider, ai_adapter
 from app.ingestion import validasi_dan_normalisasi_butir_soal
+from app.math_verifier import verifikasi_butir_soal_ai
 
 INSTRUKSI_TUTOR_SOKRATIK = """
 Anda adalah Tutor AI Sokratik pada platform persiapan CPNS "LOLOS CPNS".
@@ -31,6 +32,9 @@ Anda adalah Penyusun Soal Latihan Perbaikan Adaptif (Adaptive Remedial Drill) pa
 Buatlah soal latihan variasi baru yang orisinal dalam Bahasa Indonesia yang baik dan benar
 pada kategori dan sub-topik resmi Kepmenpan-RB Nomor 321 Tahun 2024 yang diminta pengguna.
 
+Khusus soal hitungan/numerik/deret TIU, WAJIB sertakan kunci "verification_formula" (contoh "(24 * 35) / 20 - 24")
+dan "expected_answer" berupa nilai angka pasti agar diverifikasi silang secara deterministik.
+
 Kembalikan HANYA objek JSON dengan struktur:
 {
   "daftar_soal": [
@@ -40,6 +44,8 @@ Kembalikan HANYA objek JSON dengan struktur:
       "sub_topic": "Kemampuan Numerik - Deret Angka",
       "difficulty": "sedang",
       "question_text": "...",
+      "verification_formula": "...",
+      "expected_answer": 18,
       "options": [
         {"kunci": "A", "teks": "...", "skor": 0},
         {"kunci": "B", "teks": "...", "skor": 5},
@@ -136,16 +142,34 @@ async def buat_latihan_adaptif_dinamis(
     )
 
     daftar_mentah = hasil_json.get("daftar_soal") or []
-    daftar_tervalidasi = [
-        validasi_dan_normalisasi_butir_soal(
+    daftar_tervalidasi: List[Dict[str, Any]] = []
+    jumlah_diperbaiki = 0
+    jumlah_ditolak = 0
+
+    for butir in daftar_mentah:
+        normal = validasi_dan_normalisasi_butir_soal(
             {**butir, "category": kategori, "sub_topic": sub_topik}
         )
-        for butir in daftar_mentah
-    ]
+        lolos, laporan = verifikasi_butir_soal_ai(
+            normal,
+            verification_formula=butir.get("verification_formula"),
+            expected_answer=butir.get("expected_answer"),
+        )
+        if lolos and laporan.get("butir"):
+            if laporan.get("diperbaiki_otomatis"):
+                jumlah_diperbaiki += 1
+            daftar_tervalidasi.append(laporan["butir"])
+        else:
+            jumlah_ditolak += 1
 
     return {
         "status": "berhasil",
-        "pesan": f"Berhasil membuat {len(daftar_tervalidasi)} soal Latihan Perbaikan Adaptif untuk sub-topik {sub_topik}.",
+        "pesan": f"Berhasil membuat {len(daftar_tervalidasi)} soal Latihan Perbaikan Adaptif terverifikasi untuk sub-topik {sub_topik}.",
         "jumlah_soal": len(daftar_tervalidasi),
+        "ringkasan_verifikasi": {
+            "jumlah_ai_tervalidasi": len(daftar_tervalidasi),
+            "jumlah_diperbaiki": jumlah_diperbaiki,
+            "jumlah_ditolak_halusinasi": jumlah_ditolak,
+        },
         "daftar_soal": daftar_tervalidasi,
     }

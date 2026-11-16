@@ -4,6 +4,10 @@
  * tanpa pernah membocorkan nilai rahasia, API key, atau rincian server sensitif.
  */
 
+import {
+  dapatkanMetrikAI,
+  type RingkasanMetrikAI,
+} from "./ai-client.ts";
 import { panggilLayananAI } from "./ai-service-proxy.ts";
 import { apakahMidtransTerkonfigurasiNyata } from "./payment-security.ts";
 import { buatKlienSupabaseServer } from "./supabase.ts";
@@ -28,6 +32,7 @@ export interface LaporanKesehatanLayanan {
       supabase_terhubung: boolean;
       layanan_ai_terhubung: boolean;
     };
+    observabilitas_ai: RingkasanMetrikAI;
   };
 }
 
@@ -141,6 +146,7 @@ export async function periksaKesehatanLayanan(): Promise<LaporanKesehatanLayanan
         supabase_terhubung: supabaseTerhubung,
         layanan_ai_terhubung: layananAITerhubung,
       },
+      observabilitas_ai: dapatkanMetrikAI(),
     },
   };
 }

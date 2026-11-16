@@ -3,6 +3,11 @@
 import os
 from app.ai_provider import KonfigurasiAI, UnifiedAIProvider
 from app.ingestion import SUB_TOPIK_RESMI_SKD, validasi_dan_normalisasi_butir_soal
+from app.math_verifier import (
+    evaluasi_ekspresi_aritmetika_aman,
+    prediksi_suku_berikutnya_deret,
+    verifikasi_butir_soal_ai,
+)
 
 
 def test_konfigurasi_ai_dari_env_default():
@@ -49,3 +54,38 @@ def test_validasi_dan_normalisasi_butir_soal_kisi_kisi_resmi():
     assert butir["status"] == "draf"
     assert len(butir["options"]) == 5
     assert butir["options"][0]["skor"] == 5
+
+
+def test_verifikasi_numerik_dan_circuit_breaker():
+    assert evaluasi_ekspresi_aritmetika_aman("(24 * 35) / 20 - 24") == 18.0
+    assert evaluasi_ekspresi_aritmetika_aman("__import__('os').system('ls')") is None
+    assert prediksi_suku_berikutnya_deret("4, 9, 19, 39, 79, ...") == 159.0
+
+    lolos, laporan = verifikasi_butir_soal_ai(
+        {
+            "category": "TIU",
+            "sub_topic": "Kemampuan Numerik - Perbandingan Kuantitatif",
+            "question_text": "Berapa tambahan pekerja?",
+            "options": [
+                {"kunci": "A", "teks": "12 pekerja", "skor": 5},
+                {"kunci": "B", "teks": "16 pekerja", "skor": 0},
+                {"kunci": "C", "teks": "18 pekerja", "skor": 0},
+                {"kunci": "D", "teks": "20 pekerja", "skor": 0},
+                {"kunci": "E", "teks": "42 pekerja", "skor": 0},
+            ],
+        },
+        verification_formula="(24 * 35) / 20 - 24",
+        expected_answer=18,
+    )
+    assert lolos is True
+    assert laporan["diperbaiki_otomatis"] is True
+    assert laporan["butir"]["options"][2]["skor"] == 5
+
+    provider = UnifiedAIProvider(ambang_gagal_circuit=2, cooldown_circuit_detik=60.0)
+    provider._catat_gagal("gemini_free", 12.0)
+    assert provider._status_sirkuit("gemini_free") == "tertutup"
+    provider._catat_gagal("gemini_free", 15.0)
+    assert provider._status_sirkuit("gemini_free") == "terbuka"
+    metrik = provider.dapatkan_metrik_ai()
+    assert metrik["total_gagal"] == 2
+    assert metrik["status_circuit_breaker"]["gemini_free"] == "terbuka"

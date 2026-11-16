@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { periksaBatasLajuPermintaan } from "@/lib/access-control";
 import { panggilChatAI } from "@/lib/ai-client";
+import { verifikasiButirSoalAI } from "@/lib/ai-math-verifier";
 import { panggilLayananAI } from "@/lib/ai-service-proxy";
 import { bangkitkanSoalLatihanAdaptif } from "@/lib/gap-analyzer";
 import {
@@ -83,8 +84,10 @@ export async function POST(request: Request) {
       // Lanjut ke generasi lokal/AI terpadu
     }
 
-    // 2. Generasi adaptif via Adaptor AI Next.js atau bank variasi deterministik
+    // 2. Generasi adaptif via Adaptor AI Next.js + Verifikasi Matematis Deterministik
     let daftarSoalAdaptif: QuestionRow[] = [];
+    let jumlahDiperbaiki = 0;
+    let jumlahDitolak = 0;
 
     try {
       const responsJson = await panggilChatAI({
@@ -92,9 +95,10 @@ export async function POST(request: Request) {
           `Buatlah ${jumlahSoal} butir soal latihan SKD variasi baru dalam Bahasa Indonesia baku untuk ` +
           `Sub-Tes ${kategori} dengan sub-topik resmi "${subTopik}" (Kepmenpan-RB Nomor 321 Tahun 2024). ` +
           `Setiap soal wajib berbentuk objek JSON dengan kunci: category, sub_topic, difficulty ("mudah"|"sedang"|"sulit"), question_text, options ([{kunci:"A".."E", teks, skor}]), explanation, source_reference. ` +
-          `Untuk TWK/TIU skor benar=5 dan salah=0; untuk TKP gunakan skala berjenjang 1 sampai 5. Keluarkan dalam format JSON array.`,
+          `KHUSUS untuk soal hitungan/numerik/deret TIU, WAJIB sertakan juga kunci "verification_formula" (contoh: "(24 * 35) / 20 - 24") dan "expected_answer" (angka hasil pasti). ` +
+          `Untuk TWK/TIU skor benar=5 dan salah=0; untuk TKP gunakan skala berjenjang 1 sampai 5. Keluarkan dalam format JSON { "daftar_soal": [...] }.`,
         instruksiSistem:
-          "Anda adalah penulis soal BKN profesional. Jawab HANYA dengan array JSON yang valid.",
+          "Anda adalah penulis soal BKN profesional. Jawab HANYA dengan objek JSON yang valid.",
         formatJson: true,
         suhu: 0.4,
       });
@@ -108,45 +112,80 @@ export async function POST(request: Request) {
           ? urai.daftar_soal
           : [];
 
-      if (daftarMentah.length > 0) {
-        daftarSoalAdaptif = daftarMentah.slice(0, jumlahSoal).map((item, idx) => {
-          const norm = normalisasiButirSoalEkstraksi(item, idx);
-          return {
-            id:
-              norm.id_sementara ||
-              `drill-${kategori.toLowerCase()}-${Date.now()}-${idx}`,
-            stage: "SKD",
-            category: norm.category,
-            sub_topic: norm.sub_topic || subTopik,
-            difficulty: norm.difficulty,
-            question_text: norm.question_text,
-            image_url: null,
-            options: norm.options,
-            explanation: norm.explanation,
-            source_reference: norm.source_reference,
-            is_paraphrased: true,
-            status: "disetujui",
-            embedding: null,
-            created_at: new Date().toISOString(),
-          };
+      for (let idx = 0; idx < daftarMentah.length && daftarSoalAdaptif.length < jumlahSoal; idx++) {
+        const item = daftarMentah[idx];
+        const norm = normalisasiButirSoalEkstraksi(item, idx);
+        const kandidat: QuestionRow = {
+          id:
+            norm.id_sementara ||
+            `drill-${kategori.toLowerCase()}-${Date.now()}-${idx}`,
+          stage: "SKD",
+          category: norm.category,
+          sub_topic: norm.sub_topic || subTopik,
+          difficulty: norm.difficulty,
+          question_text: norm.question_text,
+          image_url: null,
+          options: norm.options,
+          explanation: norm.explanation,
+          source_reference: norm.source_reference,
+          is_paraphrased: true,
+          status: "disetujui",
+          embedding: null,
+          created_at: new Date().toISOString(),
+        };
+
+        const hasilVerif = verifikasiButirSoalAI(kandidat, {
+          verificationFormula:
+            typeof item.verification_formula === "string"
+              ? item.verification_formula
+              : null,
+          expectedAnswer:
+            typeof item.expected_answer === "string" ||
+            typeof item.expected_answer === "number"
+              ? item.expected_answer
+              : null,
         });
+
+        if (hasilVerif.lolos && hasilVerif.butir) {
+          if (hasilVerif.diperbaikiOtomatis) jumlahDiperbaiki += 1;
+          daftarSoalAdaptif.push(hasilVerif.butir);
+        } else {
+          jumlahDitolak += 1;
+        }
       }
     } catch {
       // Gunakan fallback bank latihan adaptif terkurasi
     }
 
-    if (daftarSoalAdaptif.length === 0) {
-      daftarSoalAdaptif = bangkitkanSoalLatihanAdaptif({
+    const jumlahTervalidasiAI = daftarSoalAdaptif.length;
+    if (daftarSoalAdaptif.length < jumlahSoal) {
+      const cadangan = bangkitkanSoalLatihanAdaptif({
         kategori,
         subTopik,
         jumlahSoal,
       });
+      const teksAda = new Set(
+        daftarSoalAdaptif.map((s) => s.question_text.trim().toLowerCase())
+      );
+      for (const item of cadangan) {
+        if (daftarSoalAdaptif.length >= jumlahSoal) break;
+        const kunciTeks = item.question_text.trim().toLowerCase();
+        if (!teksAda.has(kunciTeks)) {
+          teksAda.add(kunciTeks);
+          daftarSoalAdaptif.push(item);
+        }
+      }
     }
 
     return NextResponse.json({
       status: "berhasil",
       pesan: `Berhasil menyiapkan ${daftarSoalAdaptif.length} soal Latihan Perbaikan Adaptif pada sub-topik "${subTopik}".`,
       jumlah_soal: daftarSoalAdaptif.length,
+      ringkasan_verifikasi: {
+        jumlah_ai_tervalidasi: jumlahTervalidasiAI,
+        jumlah_diperbaiki: jumlahDiperbaiki,
+        jumlah_ditolak_halusinasi: jumlahDitolak,
+      },
       daftar_soal: daftarSoalAdaptif,
     });
   } catch (galat) {

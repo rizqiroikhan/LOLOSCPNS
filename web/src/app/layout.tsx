@@ -33,7 +33,8 @@ export const metadata: Metadata = {
     locale: "id_ID",
     url: "https://loloscpns.id",
     siteName: "LOLOS CPNS",
-    title: "LOLOS CPNS — Taklukkan Nilai Ambang Batas SKD CPNS dengan Presisi & Tutor AI",
+    title:
+      "LOLOS CPNS — Taklukkan Nilai Ambang Batas SKD CPNS dengan Presisi & Tutor AI",
     description:
       "Simulasi CAT SKD 110 soal standar BKN, evaluasi akurat 7 formasi Kepmenpan-RB No. 321 Tahun 2024, Analisis Kesenjangan Nilai, serta Tutor AI Pembimbing.",
   },
@@ -50,7 +51,19 @@ export default function TataLetakUtama({
 }>) {
   return (
     <html lang="id">
-      <body className="min-h-screen bg-slate-50 text-slate-900 antialiased">
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link
+          rel="preconnect"
+          href="https://fonts.gstatic.com"
+          crossOrigin="anonymous"
+        />
+        <link
+          href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
+          rel="stylesheet"
+        />
+      </head>
+      <body className="min-h-screen bg-slate-50 font-sans text-slate-900 antialiased selection:bg-blue-600 selection:text-white">
         {children}
       </body>
     </html>

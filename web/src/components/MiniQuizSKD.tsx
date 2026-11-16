@@ -2,6 +2,16 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
+import { AnimatePresence, motion } from "framer-motion";
+import {
+  ArrowLeft,
+  ArrowRight,
+  Award,
+  BookOpenCheck,
+  CheckCircle2,
+  RotateCcw,
+  Sparkles,
+} from "lucide-react";
 import { SOAL_KUIS_SINGKAT_BERANDA } from "@/lib/cat-question-bank";
 import type { PetaJawabanPeserta } from "@/types/database";
 
@@ -54,141 +64,177 @@ export default function KuisSingkatInteraktifSKD() {
   );
 
   return (
-    <div className="rounded-2xl border border-blue-200 bg-white p-6 shadow-md sm:p-8">
-      <div className="mb-5 flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-4">
+    <div className="relative overflow-hidden rounded-3xl border border-slate-200/90 bg-white p-6 shadow-tactile-lg sm:p-8 lg:p-10">
+      {/* Aksen sudut halus */}
+      <div className="pointer-events-none absolute -right-20 -top-20 h-56 w-56 rounded-full bg-blue-50/70 blur-3xl" />
+
+      <div className="relative mb-6 flex flex-wrap items-start justify-between gap-4 border-b border-slate-200/80 pb-5">
         <div>
-          <span className="inline-block rounded-md bg-blue-600 px-2.5 py-1 text-xs font-bold text-white">
-            COBA LANGSUNG TANPA DAFTAR
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-[11px] font-extrabold uppercase tracking-wider text-blue-800">
+            <Sparkles className="h-3.5 w-3.5 text-blue-600" />
+            Uji Instan Tanpa Akun
           </span>
-          <h3 className="mt-2 text-xl font-bold text-slate-900">
+          <h3 className="mt-2.5 text-xl font-extrabold tracking-tight text-slate-900 sm:text-2xl">
             Kuis Singkat Interaktif 3 Soal SKD (TWK, TIU, TKP)
           </h3>
-          <p className="text-xs text-slate-600">
-            Uji kesiapan awal Anda dengan 3 sampel soal standar Kepmenpan-RB
-            Nomor 321 Tahun 2024.
+          <p className="mt-1 text-xs text-slate-600 sm:text-sm">
+            Rasakan pengalaman pengerjaan soal berstandar Keputusan Menteri PANRB
+            Nomor 321 Tahun 2024 beserta pembahasan langsung.
           </p>
         </div>
-        <div className="flex items-center gap-1.5">
-          {SOAL_KUIS_SINGKAT_BERANDA.map((s, idx) => (
-            <button
-              key={s.id}
-              type="button"
-              onClick={() => {
-                setSudahSelesai(false);
-                setIndeksSoal(idx);
-              }}
-              className={`rounded-lg px-3 py-1.5 text-xs font-bold transition ${
-                !sudahSelesai && idx === indeksSoal
-                  ? "bg-blue-700 text-white"
-                  : jawaban[s.id]
-                  ? "bg-emerald-100 text-emerald-800"
-                  : "bg-slate-100 text-slate-600"
-              }`}
-            >
-              {idx + 1}. {s.category}
-            </button>
-          ))}
+
+        <div className="flex items-center gap-1.5 rounded-2xl border border-slate-200/80 bg-slate-100/80 p-1.5">
+          {SOAL_KUIS_SINGKAT_BERANDA.map((s, idx) => {
+            const sedangAktif = !sudahSelesai && idx === indeksSoal;
+            const sudahTerisi = Boolean(jawaban[s.id]);
+            return (
+              <button
+                key={s.id}
+                type="button"
+                onClick={() => {
+                  setSudahSelesai(false);
+                  setIndeksSoal(idx);
+                }}
+                className={`inline-flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-extrabold transition ${
+                  sedangAktif
+                    ? "bg-slate-900 text-white shadow-sm"
+                    : sudahTerisi
+                      ? "bg-emerald-100/90 text-emerald-900 hover:bg-emerald-200/70"
+                      : "text-slate-600 hover:bg-white/70 hover:text-slate-900"
+                }`}
+              >
+                <span className="font-mono font-numeric">{idx + 1}.</span>
+                <span>{s.category}</span>
+                {sudahTerisi && !sedangAktif && (
+                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-700" />
+                )}
+              </button>
+            );
+          })}
         </div>
       </div>
 
       {!sudahSelesai ? (
-        <div>
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-800">
-              Soal {indeksSoal + 1} dari 3 — Sub-Tes {soalAktif.category} (
-              {soalAktif.sub_topic})
-            </span>
-            <span className="text-xs font-medium text-slate-500">
-              Tingkat Kesulitan:{" "}
-              <strong className="capitalize text-slate-800">
-                {soalAktif.difficulty}
-              </strong>
-            </span>
-          </div>
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={soalAktif.id}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6 }}
+            transition={{ duration: 0.18, ease: "easeOut" }}
+          >
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="rounded-lg bg-slate-900 px-2.5 py-1 font-mono text-xs font-bold text-white font-numeric">
+                  Butir {indeksSoal + 1} / 3
+                </span>
+                <span className="rounded-lg border border-blue-200 bg-blue-50/80 px-3 py-1 text-xs font-bold text-blue-900">
+                  Sub-Tes {soalAktif.category} • {soalAktif.sub_topic}
+                </span>
+              </div>
+              <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600">
+                Tingkat Kesulitan:{" "}
+                <strong className="capitalize text-slate-900">
+                  {soalAktif.difficulty}
+                </strong>
+              </span>
+            </div>
 
-          <p className="mb-5 rounded-xl bg-slate-50 p-4 text-sm font-medium leading-relaxed text-slate-900 sm:text-base">
-            {soalAktif.question_text}
-          </p>
+            <div className="mb-6 rounded-2xl border border-slate-200/80 bg-slate-50/70 p-5 text-sm font-medium leading-relaxed text-slate-900 sm:text-base">
+              {soalAktif.question_text}
+            </div>
 
-          <div className="space-y-2.5">
-            {soalAktif.options.map((opsi) => {
-              const aktif = pilihanTerpilih === opsi.kunci;
-              return (
-                <button
-                  key={opsi.kunci}
-                  type="button"
-                  onClick={() => pilihJawaban(opsi.kunci)}
-                  className={`flex w-full items-start gap-3 rounded-xl border p-3.5 text-left text-sm transition ${
-                    aktif
-                      ? "border-blue-600 bg-blue-50/80 font-semibold text-blue-950 shadow-sm"
-                      : "border-slate-200 bg-white text-slate-800 hover:border-blue-300 hover:bg-slate-50"
-                  }`}
-                >
-                  <span
-                    className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-xs font-bold ${
+            <div className="space-y-2.5">
+              {soalAktif.options.map((opsi) => {
+                const aktif = pilihanTerpilih === opsi.kunci;
+                return (
+                  <button
+                    key={opsi.kunci}
+                    type="button"
+                    onClick={() => pilihJawaban(opsi.kunci)}
+                    className={`group flex w-full items-start gap-3.5 rounded-2xl border p-4 text-left text-sm transition ${
                       aktif
-                        ? "bg-blue-600 text-white"
-                        : "bg-slate-100 text-slate-700"
+                        ? "border-blue-600 bg-blue-50/70 font-semibold text-slate-950 shadow-sm ring-2 ring-blue-100"
+                        : "border-slate-200/90 bg-white text-slate-800 hover:border-blue-300 hover:bg-slate-50/70"
                     }`}
                   >
-                    {opsi.kunci}
-                  </span>
-                  <span className="leading-relaxed">{opsi.teks}</span>
-                </button>
-              );
-            })}
-          </div>
+                    <span
+                      className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg font-mono text-xs font-extrabold transition ${
+                        aktif
+                          ? "bg-blue-700 text-white"
+                          : "border border-slate-200 bg-slate-100 text-slate-700 group-hover:border-blue-200 group-hover:bg-blue-50 group-hover:text-blue-700"
+                      }`}
+                    >
+                      {opsi.kunci}
+                    </span>
+                    <span className="pt-0.5 leading-relaxed">{opsi.teks}</span>
+                  </button>
+                );
+              })}
+            </div>
 
-          <div className="mt-6 flex items-center justify-between border-t border-slate-100 pt-4">
-            <button
-              type="button"
-              disabled={indeksSoal === 0}
-              onClick={() => setIndeksSoal((s) => Math.max(0, s - 1))}
-              className="rounded-lg border border-slate-300 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-40"
-            >
-              ← Soal Sebelumnya
-            </button>
+            <div className="mt-7 flex flex-wrap items-center justify-between gap-3 border-t border-slate-200/80 pt-5">
+              <button
+                type="button"
+                disabled={indeksSoal === 0}
+                onClick={() => setIndeksSoal((s) => Math.max(0, s - 1))}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 transition hover:bg-slate-50 disabled:opacity-40"
+              >
+                <ArrowLeft className="h-3.5 w-3.5" />
+                <span>Soal Sebelumnya</span>
+              </button>
 
-            <button
-              type="button"
-              onClick={lanjutSoalBerikutnya}
-              className="rounded-xl bg-blue-600 px-5 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-blue-700 sm:text-sm"
-            >
-              {indeksSoal < SOAL_KUIS_SINGKAT_BERANDA.length - 1
-                ? "Simpan & Lanjut Soal Berikutnya →"
-                : "Lihat Skor & Pembahasan Kuis →"}
-            </button>
-          </div>
-        </div>
+              <button
+                type="button"
+                onClick={lanjutSoalBerikutnya}
+                className="inline-flex items-center gap-2 rounded-xl bg-blue-700 px-5 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-blue-800 active:scale-[0.99] sm:text-sm"
+              >
+                <span>
+                  {indeksSoal < SOAL_KUIS_SINGKAT_BERANDA.length - 1
+                    ? "Simpan & Lanjut Soal Berikutnya"
+                    : "Lihat Skor & Pembahasan Kuis"}
+                </span>
+                <ArrowRight className="h-4 w-4" />
+              </button>
+            </div>
+          </motion.div>
+        </AnimatePresence>
       ) : (
-        <div>
-          <div className="mb-6 rounded-xl border border-emerald-200 bg-emerald-50 p-5">
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.2 }}
+        >
+          <div className="mb-6 rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50 via-white to-emerald-50/60 p-6 shadow-sm">
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div>
-                <span className="text-xs font-bold uppercase tracking-wider text-emerald-800">
+                <span className="inline-flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-wider text-emerald-800">
+                  <Award className="h-4 w-4 text-emerald-600" />
                   Hasil Kuis Singkat SKD Anda
                 </span>
-                <h4 className="mt-1 text-2xl font-extrabold text-slate-900">
+                <h4 className="mt-1 font-mono text-2xl font-extrabold text-slate-900 font-numeric sm:text-3xl">
                   Skor Diperoleh: {totalSkorKuis} / 15 Poin
                 </h4>
-                <p className="mt-1 text-xs text-slate-700">
-                  TWK & TIU bernilai +5 untuk jawaban tepat, sedangkan TKP
+                <p className="mt-1 text-xs text-slate-600 sm:text-sm">
+                  TWK &amp; TIU bernilai +5 untuk jawaban tepat, sedangkan TKP
                   menggunakan skala berjenjang 1 s.d. 5.
                 </p>
               </div>
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-2.5">
                 <button
                   type="button"
                   onClick={ulangiKuis}
-                  className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 transition hover:bg-slate-50"
                 >
-                  Ulangi Kuis Singkat
+                  <RotateCcw className="h-3.5 w-3.5" />
+                  <span>Ulangi Kuis Singkat</span>
                 </button>
                 <Link
                   href="/simulasi/skd/paket-perdana-gratis"
-                  className="rounded-lg bg-emerald-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-emerald-700"
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-700 px-4 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-emerald-800"
                 >
-                  Lanjut Simulasi Penuh 110 Soal →
+                  <span>Lanjut Simulasi Penuh 110 Soal</span>
+                  <ArrowRight className="h-3.5 w-3.5" />
                 </Link>
               </div>
             </div>
@@ -198,18 +244,21 @@ export default function KuisSingkatInteraktifSKD() {
             {rincianHasil.map((item, idx) => (
               <div
                 key={item.butir.id}
-                className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm"
+                className="rounded-2xl border border-slate-200/90 bg-slate-50/70 p-5 text-sm"
               >
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="font-bold text-slate-900">
-                    Soal {idx + 1} ({item.butir.category} —{" "}
-                    {item.butir.sub_topic})
+                  <span className="inline-flex items-center gap-2 font-bold text-slate-900">
+                    <BookOpenCheck className="h-4 w-4 text-blue-700" />
+                    <span>
+                      Soal {idx + 1} ({item.butir.category} —{" "}
+                      {item.butir.sub_topic})
+                    </span>
                   </span>
                   <span
-                    className={`rounded-md px-2.5 py-0.5 text-xs font-bold ${
+                    className={`rounded-lg px-3 py-1 font-mono text-xs font-bold font-numeric ${
                       item.skorDiperoleh === 5
-                        ? "bg-emerald-100 text-emerald-800"
-                        : "bg-amber-100 text-amber-800"
+                        ? "border border-emerald-200 bg-emerald-100/80 text-emerald-900"
+                        : "border border-amber-200 bg-amber-100/80 text-amber-900"
                     }`}
                   >
                     Jawaban Anda: {item.kunciPeserta || "Kosong"} (+
@@ -217,13 +266,14 @@ export default function KuisSingkatInteraktifSKD() {
                     {item.opsiTerbaik.kunci}
                   </span>
                 </div>
-                <p className="mt-2 text-xs leading-relaxed text-slate-700">
-                  <strong>Pembahasan:</strong> {item.butir.explanation}
+                <p className="mt-2.5 text-xs leading-relaxed text-slate-700 sm:text-sm">
+                  <strong className="text-slate-900">Pembahasan Resmi:</strong>{" "}
+                  {item.butir.explanation}
                 </p>
               </div>
             ))}
           </div>
-        </div>
+        </motion.div>
       )}
     </div>
   );

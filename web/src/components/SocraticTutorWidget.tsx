@@ -2,6 +2,13 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
+import {
+  Bot,
+  MessageSquareText,
+  SendHorizontal,
+  Sparkles,
+  X,
+} from "lucide-react";
 import type { QuestionRow } from "@/types/database";
 
 interface PesanDiskusi {
@@ -101,45 +108,48 @@ export default function WidgetTutorSokratik({
         <button
           type="button"
           onClick={() => setTerbuka(true)}
-          className="inline-flex items-center gap-2 rounded-lg border border-indigo-200 bg-indigo-50 px-3.5 py-2 text-xs font-bold text-indigo-800 transition hover:bg-indigo-100"
+          className="inline-flex items-center gap-2 rounded-xl border border-indigo-200 bg-indigo-50/90 px-3.5 py-2 text-xs font-bold text-indigo-800 shadow-sm transition hover:border-indigo-300 hover:bg-indigo-100"
         >
-          <span>💬 Tanya Tutor AI Pembimbing</span>
+          <MessageSquareText className="h-3.5 w-3.5 text-indigo-700" />
+          <span>Tanya Tutor AI Pembimbing</span>
         </button>
       ) : (
-        <div className="rounded-xl border border-indigo-200 bg-indigo-50/40 p-4">
+        <div className="rounded-2xl border border-indigo-200 bg-indigo-50/40 p-4 shadow-sm">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2 border-b border-indigo-100 pb-2.5">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="rounded bg-indigo-600 px-2.5 py-0.5 text-[11px] font-bold text-white">
-                TUTOR AI PEMBIMBING
+              <span className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-2.5 py-1 text-[11px] font-bold text-white">
+                <Bot className="h-3.5 w-3.5" />
+                <span>TUTOR AI PEMBIMBING</span>
               </span>
               <span className="text-xs font-medium text-slate-600">
-                Siap membimbing langkah demi langkah
+                Pendampingan penalaran langkah demi langkah
               </span>
             </div>
             <button
               type="button"
               onClick={() => setTerbuka(false)}
-              className="text-xs font-semibold text-slate-500 hover:text-slate-800"
+              className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold text-slate-500 hover:bg-white hover:text-slate-800"
             >
-              Tutup Diskusi ✕
+              <span>Tutup Diskusi</span>
+              <X className="h-3.5 w-3.5" />
             </button>
           </div>
 
           {kuotaHabisInfo && (
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-200 bg-amber-50 p-2.5 text-[11px] text-amber-900">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
               <span>Kuota diskusi Tutor AI harian Anda telah habis.</span>
               <div className="flex gap-2">
                 {kuotaHabisInfo.butuhMasuk && (
                   <Link
                     href="/masuk"
-                    className="rounded bg-white px-2 py-1 font-bold text-slate-800 underline"
+                    className="rounded-lg bg-white px-2.5 py-1 font-bold text-slate-800 underline"
                   >
                     Masuk Akun
                   </Link>
                 )}
                 <Link
                   href="/pembayaran?paket=paket-intensif-skd"
-                  className="rounded bg-blue-700 px-2.5 py-1 font-bold text-white"
+                  className="rounded-lg bg-blue-700 px-2.5 py-1 font-bold text-white"
                 >
                   Upgrade Akses →
                 </Link>
@@ -149,21 +159,22 @@ export default function WidgetTutorSokratik({
 
           {/* Riwayat Percakapan Tutor AI */}
           {kuotaTersisa && (
-            <div className="mb-2 text-[11px] font-semibold text-indigo-700">
-              {kuotaTersisa}
+            <div className="mb-2 inline-flex items-center gap-1 rounded-full bg-indigo-100/80 px-2.5 py-0.5 font-mono text-[11px] font-bold text-indigo-800 font-numeric">
+              <Sparkles className="h-3 w-3" />
+              <span>{kuotaTersisa}</span>
             </div>
           )}
           <div className="mb-3 max-h-64 space-y-2.5 overflow-y-auto pr-1 text-xs sm:text-sm">
             {riwayatPesan.map((pesan, idx) => (
               <div
                 key={idx}
-                className={`rounded-xl p-3 leading-relaxed ${
+                className={`rounded-2xl p-3.5 leading-relaxed ${
                   pesan.pengirim === "peserta"
-                    ? "ml-8 bg-blue-600 text-white"
-                    : "mr-4 border border-indigo-100 bg-white text-slate-800"
+                    ? "ml-8 bg-blue-700 text-white shadow-sm"
+                    : "mr-4 border border-indigo-100 bg-white text-slate-800 shadow-sm"
                 }`}
               >
-                <span className="mb-1 block text-[10px] font-bold uppercase opacity-75">
+                <span className="mb-1 block text-[10px] font-bold uppercase tracking-wider opacity-75">
                   {pesan.pengirim === "peserta"
                     ? "Anda (Peserta)"
                     : "Tutor AI Pembimbing"}
@@ -172,8 +183,9 @@ export default function WidgetTutorSokratik({
               </div>
             ))}
             {sedangMemuat && (
-              <div className="rounded-xl border border-indigo-100 bg-white p-3 text-xs italic text-slate-500">
-                Tutor AI sedang menyiapkan penjelasan langkah demi langkah untuk Anda...
+              <div className="rounded-2xl border border-indigo-100 bg-white p-3 text-xs italic text-slate-500">
+                Tutor AI sedang menyiapkan penjelasan langkah demi langkah untuk
+                Anda...
               </div>
             )}
           </div>
@@ -185,7 +197,7 @@ export default function WidgetTutorSokratik({
               onClick={() =>
                 kirimPertanyaan("Apa kata kunci utama pada soal ini?")
               }
-              className="rounded-md border border-indigo-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-indigo-700 hover:bg-indigo-50"
+              className="rounded-lg border border-indigo-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-indigo-700 transition hover:bg-indigo-50"
             >
               Apa kata kunci soal ini?
             </button>
@@ -196,7 +208,7 @@ export default function WidgetTutorSokratik({
                   "Mengapa pilihan jawaban saya belum bernilai maksimal?"
                 )
               }
-              className="rounded-md border border-indigo-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-indigo-700 hover:bg-indigo-50"
+              className="rounded-lg border border-indigo-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-indigo-700 transition hover:bg-indigo-50"
             >
               Analisis pilihan jawaban saya
             </button>
@@ -207,7 +219,7 @@ export default function WidgetTutorSokratik({
                   "Bagaimana cara cepat menyelesaikan tipe soal sub-topik ini?"
                 )
               }
-              className="rounded-md border border-indigo-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-indigo-700 hover:bg-indigo-50"
+              className="rounded-lg border border-indigo-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-indigo-700 transition hover:bg-indigo-50"
             >
               Strategi cepat sub-topik ini
             </button>
@@ -226,15 +238,16 @@ export default function WidgetTutorSokratik({
                 }
               }}
               placeholder="Tanyakan langkah penalaran atau konsep yang belum dipahami..."
-              className="flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs text-slate-900 sm:text-sm"
+              className="flex-1 rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs text-slate-900 outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-100 sm:text-sm"
             />
             <button
               type="button"
               disabled={sedangMemuat}
               onClick={() => kirimPertanyaan()}
-              className="rounded-lg bg-indigo-600 px-4 py-2 text-xs font-bold text-white hover:bg-indigo-700 disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-bold text-white transition hover:bg-indigo-700 disabled:opacity-50"
             >
-              Kirim
+              <span>Kirim</span>
+              <SendHorizontal className="h-3.5 w-3.5" />
             </button>
           </div>
         </div>

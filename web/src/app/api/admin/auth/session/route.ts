@@ -13,9 +13,11 @@ export async function GET(request: Request) {
     });
   }
 
-  // Pastikan akun admin masih terdaftar aktif
+  // Pastikan akun admin masih terdaftar aktif (cocokkan ID atau username agar tahan cold-start)
   const daftarAkun = await bacaDaftarAkunAdminPublik();
-  const masihAda = daftarAkun.find((a) => a.id === sesi.id);
+  const masihAda = daftarAkun.find(
+    (a) => a.id === sesi.id || a.username === sesi.username
+  );
   if (!masihAda) {
     return NextResponse.json({
       terautentikasi: false,

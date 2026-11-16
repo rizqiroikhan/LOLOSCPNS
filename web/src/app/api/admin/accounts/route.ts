@@ -13,10 +13,13 @@ async function validasiSesiTerautentikasi(request: Request) {
   const sesi = ekstrakSesiDariHeaderCookie(request.headers.get("cookie"));
   if (!sesi) return null;
   const daftar = await bacaDaftarAkunAdminPublik();
-  const cocok = daftar.find((a) => a.id === sesi.id);
+  const cocok = daftar.find(
+    (a) => a.id === sesi.id || a.username === sesi.username
+  );
   if (!cocok) return null;
   return {
     ...sesi,
+    id: cocok.id,
     peran: cocok.peran,
   };
 }

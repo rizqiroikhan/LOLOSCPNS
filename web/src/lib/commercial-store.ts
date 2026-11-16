@@ -20,6 +20,7 @@ import {
   dapatkanMidtransServerKey,
 } from "./payment-security.ts";
 import { perbaruiTingkatLanggananPeserta } from "./user-auth.ts";
+import { apakahKonfigurasiSupabaseValid } from "./supabase.ts";
 import type {
   JenisFormasiSKD,
   PetaJawabanPeserta,
@@ -70,14 +71,7 @@ function dapatkanPathStoreKomersial(pathKustom?: string): string {
 }
 
 function apakahSupabaseTersediaKomersial(): boolean {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
-  const kunci = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
-  return (
-    Boolean(url) &&
-    Boolean(kunci) &&
-    !url.includes("proyek-anda.supabase.co") &&
-    !kunci.includes("masukkan_supabase")
-  );
+  return apakahKonfigurasiSupabaseValid();
 }
 
 function bacaStoreLokal(pathKustom?: string): StrukturStoreLokalKomersial {

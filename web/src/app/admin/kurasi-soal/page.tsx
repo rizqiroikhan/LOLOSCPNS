@@ -3,6 +3,8 @@
 import React, { useState } from "react";
 import AdminPortalShell from "@/components/AdminPortalShell";
 import {
+  buatDrafSoalKosong,
+  CONTOH_FORMAT_CSV_SOAL,
   CONTOH_HASIL_EKSTRAKSI_SOAL_SKD,
   DAFTAR_SUB_TOPIK_RESMI_SKD,
   type DrafKurasiSoal,
@@ -23,15 +25,22 @@ export default function HalamanStudioKurasiSoal() {
     useState<RegulationRow | null>(REGULASI_SKD_321_2024);
 
   // State Ekstraksi & Kurasi Soal
+  const [tabInputSoal, setTabInputSoal] = useState<
+    "berkas" | "teks_ai" | "csv_json"
+  >("berkas");
   const [berkasSoal, setBerkasSoal] = useState<File | null>(null);
   const [halamanPdf, setHalamanPdf] = useState<number>(0);
+  const [teksImporMentah, setTeksImporMentah] = useState<string>("");
   const [sedangMemprosesSoal, setSedangMemprosesSoal] = useState(false);
   const [pesanSoal, setPesanSoal] = useState<string | null>(null);
+  const [galatSoal, setGalatSoal] = useState<string | null>(null);
   const [daftarDrafSoal, setDaftarDrafSoal] = useState<DrafKurasiSoal[]>(
     CONTOH_HASIL_EKSTRAKSI_SOAL_SKD
   );
   const [indeksAktif, setIndeksAktif] = useState<number>(0);
   const [sedangMenyetujui, setSedangMenyetujui] = useState<boolean>(false);
+  const [sedangMenyetujuiSemua, setSedangMenyetujuiSemua] =
+    useState<boolean>(false);
 
   const soalAktif: DrafKurasiSoal | undefined = daftarDrafSoal[indeksAktif];
 
@@ -77,14 +86,16 @@ export default function HalamanStudioKurasiSoal() {
   async function tanganiEkstraksiSoal(e: React.FormEvent) {
     e.preventDefault();
     if (!berkasSoal) {
-      setPesanSoal(
+      setGalatSoal(
         "Silakan pilih berkas pindaian halaman soal (PDF/PNG/JPG) terlebih dahulu."
       );
+      setPesanSoal(null);
       return;
     }
 
     setSedangMemprosesSoal(true);
     setPesanSoal(null);
+    setGalatSoal(null);
 
     try {
       const formData = new FormData();
@@ -107,7 +118,7 @@ export default function HalamanStudioKurasiSoal() {
       }
       setPesanSoal(data.pesan);
     } catch (galat) {
-      setPesanSoal(
+      setGalatSoal(
         galat instanceof Error
           ? galat.message
           : "Terjadi kendala saat memproses pindaian soal."
@@ -115,6 +126,88 @@ export default function HalamanStudioKurasiSoal() {
     } finally {
       setSedangMemprosesSoal(false);
     }
+  }
+
+  async function tanganiImporTeksAtauCsv(e: React.FormEvent) {
+    e.preventDefault();
+    if (!teksImporMentah.trim()) {
+      setGalatSoal(
+        tabInputSoal === "teks_ai"
+          ? "Silakan tempel naskah teks soal terlebih dahulu."
+          : "Silakan isi atau pilih berkas CSV/JSON soal terlebih dahulu."
+      );
+      setPesanSoal(null);
+      return;
+    }
+
+    setSedangMemprosesSoal(true);
+    setPesanSoal(null);
+    setGalatSoal(null);
+
+    try {
+      const res = await fetch("/api/ingest/manual-batch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mode: tabInputSoal === "teks_ai" ? "teks_ai" : "csv_json",
+          teks_mentah: teksImporMentah,
+        }),
+      });
+      const data = await res.json();
+
+      if (!res.ok || data.status === "gagal") {
+        throw new Error(data.pesan || "Gagal menyusun soal ke Meja Tinjauan.");
+      }
+
+      if (Array.isArray(data.daftar_soal) && data.daftar_soal.length > 0) {
+        setDaftarDrafSoal(data.daftar_soal);
+        setIndeksAktif(0);
+      }
+      setPesanSoal(data.pesan);
+    } catch (galat) {
+      setGalatSoal(
+        galat instanceof Error
+          ? galat.message
+          : "Terjadi kendala saat mengurai naskah soal."
+      );
+    } finally {
+      setSedangMemprosesSoal(false);
+    }
+  }
+
+  async function tanganiBacaBerkasTeks(berkas: File | null) {
+    if (!berkas) return;
+    try {
+      const isi = await berkas.text();
+      setTeksImporMentah(isi);
+      setGalatSoal(null);
+    } catch {
+      setGalatSoal("Gagal membaca isi berkas teks/CSV/JSON.");
+    }
+  }
+
+  function tanganiTambahSoalManual() {
+    const kategoriSekarang = soalAktif?.category || "TWK";
+    const drafBaru = buatDrafSoalKosong(
+      kategoriSekarang,
+      daftarDrafSoal.length + 1
+    );
+    const indeksBaru = daftarDrafSoal.length;
+    setDaftarDrafSoal((sebelumnya) => [...sebelumnya, drafBaru]);
+    setIndeksAktif(indeksBaru);
+    setGalatSoal(null);
+    setPesanSoal(
+      "Draf soal kosong baru ditambahkan. Silakan isi pokok soal, pilihan A–E, dan pembahasan lalu klik Setujui & Simpan."
+    );
+  }
+
+  function tanganiHapusDrafAktif() {
+    if (daftarDrafSoal.length <= 1) return;
+    setDaftarDrafSoal((sebelumnya) => {
+      const tersisa = sebelumnya.filter((_, idx) => idx !== indeksAktif);
+      setIndeksAktif(Math.min(indeksAktif, Math.max(0, tersisa.length - 1)));
+      return tersisa;
+    });
   }
 
   function perbaruiSoalAktif(perubahan: Partial<DrafKurasiSoal>) {
@@ -153,6 +246,7 @@ export default function HalamanStudioKurasiSoal() {
     if (!soalAktif) return;
     setSedangMenyetujui(true);
     setPesanSoal(null);
+    setGalatSoal(null);
 
     try {
       const res = await fetch("/api/ingest/approve", {
@@ -169,7 +263,7 @@ export default function HalamanStudioKurasiSoal() {
       perbaruiSoalAktif({ status: "disetujui" });
       setPesanSoal(data.pesan);
     } catch (galat) {
-      setPesanSoal(
+      setGalatSoal(
         galat instanceof Error
           ? galat.message
           : "Gagal menyimpan persetujuan soal."
@@ -178,6 +272,74 @@ export default function HalamanStudioKurasiSoal() {
       setSedangMenyetujui(false);
     }
   }
+
+  async function tanganiSetujuiSemuaDraf() {
+    const daftarTarget = daftarDrafSoal
+      .map((butir, idx) => ({ butir, idx }))
+      .filter(
+        ({ butir }) =>
+          butir.status !== "disetujui" && Boolean(butir.question_text.trim())
+      );
+
+    if (daftarTarget.length === 0) {
+      setGalatSoal(
+        "Tidak ada draf valid yang menunggu persetujuan. Pastikan pokok soal sudah terisi."
+      );
+      return;
+    }
+
+    setSedangMenyetujuiSemua(true);
+    setPesanSoal(null);
+    setGalatSoal(null);
+
+    let jumlahBerhasil = 0;
+    let jumlahTersimpanDb = 0;
+    const indeksDisetujui = new Set<number>();
+
+    try {
+      for (const { butir, idx } of daftarTarget) {
+        const res = await fetch("/api/ingest/approve", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(butir),
+        });
+        const data = await res.json();
+        if (res.ok && data.status === "berhasil") {
+          jumlahBerhasil += 1;
+          if (data.tersimpan_di_basis_data) {
+            jumlahTersimpanDb += 1;
+          }
+          indeksDisetujui.add(idx);
+        }
+      }
+
+      if (indeksDisetujui.size > 0) {
+        setDaftarDrafSoal((sebelumnya) =>
+          sebelumnya.map((item, idx) =>
+            indeksDisetujui.has(idx) ? { ...item, status: "disetujui" } : item
+          )
+        );
+      }
+
+      if (jumlahBerhasil === 0) {
+        setGalatSoal(
+          "Gagal menyetujui draf soal. Periksa sesi login Admin atau isi pokok soal."
+        );
+      } else {
+        setPesanSoal(
+          jumlahTersimpanDb > 0
+            ? `${jumlahBerhasil} butir soal berhasil disetujui dan ${jumlahTersimpanDb} butir tersimpan ke basis data Supabase.`
+            : `${jumlahBerhasil} butir soal disetujui pada pratinjau lokal (hubungkan Supabase agar tersimpan permanen).`
+        );
+      }
+    } finally {
+      setSedangMenyetujuiSemua(false);
+    }
+  }
+
+  const jumlahDrafMenunggu = daftarDrafSoal.filter(
+    (b) => b.status !== "disetujui" && Boolean(b.question_text.trim())
+  ).length;
 
   return (
     <AdminPortalShell tabAwal="kurasi">
@@ -273,56 +435,180 @@ export default function HalamanStudioKurasiSoal() {
         )}
       </section>
 
-      {/* BAGIAN 2: UNGGAH PINDAIAN SOAL MULTIMODAL */}
+      {/* BAGIAN 2: UNGGAH PINDAIAN / TEMPEL TEKS / IMPOR MASSAL */}
       <section className="mb-8 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h2 className="text-lg font-bold text-slate-900">
-          2. Pindai & Susun Soal dari Buku Cetak atau PDF (Cerdas AI)
-        </h2>
-        <p className="mt-1 text-sm text-slate-600">
-          Unggah foto atau pindaian halaman soal (PNG/JPG/PDF). Sistem otomatis
-          mengelompokkan kisi-kisi resmi Kepmenpan-RB 321/2024, memotong gambar
-          ilustrasi soal (jika ada), serta menyusun ulang kalimat secara orisinal.
-        </p>
-
-        <form
-          onSubmit={tanganiEkstraksiSoal}
-          className="mt-4 flex flex-wrap items-end gap-4"
-        >
+        <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
-            <label className="mb-1 block text-xs font-medium text-slate-700">
-              Berkas Pindaian Soal (PDF / PNG / JPG)
-            </label>
-            <input
-              type="file"
-              accept=".pdf,image/png,image/jpeg,image/webp"
-              onChange={(e) => setBerkasSoal(e.target.files?.[0] || null)}
-              className="block text-sm text-slate-700 file:mr-4 file:rounded-lg file:border-0 file:bg-indigo-50 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-indigo-700 hover:file:bg-indigo-100"
-            />
+            <h2 className="text-lg font-bold text-slate-900">
+              2. Tambah &amp; Susun Soal ke Meja Tinjauan
+            </h2>
+            <p className="mt-1 text-sm text-slate-600">
+              Pilih cara paling praktis: pindai foto/PDF, tempel teks soal
+              mentah langsung, atau impor massal format CSV/JSON.
+            </p>
           </div>
 
-          <div>
-            <label className="mb-1 block text-xs font-medium text-slate-700">
-              Indeks Halaman PDF (Mulai dari 0)
-            </label>
-            <input
-              type="number"
-              min={0}
-              value={halamanPdf}
-              onChange={(e) => setHalamanPdf(Number(e.target.value))}
-              className="w-28 rounded-lg border border-slate-300 px-3 py-2 text-sm"
-            />
+          <div className="inline-flex rounded-xl border border-slate-200 bg-slate-100 p-1">
+            {[
+              { id: "berkas", label: "Pindai Gambar / PDF" },
+              { id: "teks_ai", label: "Tempel Teks Soal (AI)" },
+              { id: "csv_json", label: "Impor CSV / JSON" },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => {
+                  setTabInputSoal(tab.id as "berkas" | "teks_ai" | "csv_json");
+                  setGalatSoal(null);
+                  setPesanSoal(null);
+                }}
+                className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+                  tabInputSoal === tab.id
+                    ? "bg-white text-indigo-700 shadow-sm"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
           </div>
+        </div>
 
-          <button
-            type="submit"
-            disabled={sedangMemprosesSoal}
-            className="rounded-lg bg-indigo-600 px-5 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 disabled:opacity-50"
+        {tabInputSoal === "berkas" && (
+          <form
+            onSubmit={tanganiEkstraksiSoal}
+            className="mt-5 flex flex-wrap items-end gap-4"
           >
-            {sedangMemprosesSoal
-              ? "Sedang Memproses & Memparafrase..."
-              : "Proses & Parafrase Soal"}
-          </button>
-        </form>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-700">
+                Berkas Pindaian Soal (PNG / JPG / PDF)
+              </label>
+              <input
+                type="file"
+                accept=".pdf,image/png,image/jpeg,image/webp"
+                onChange={(e) => setBerkasSoal(e.target.files?.[0] || null)}
+                className="block text-sm text-slate-700 file:mr-4 file:rounded-lg file:border-0 file:bg-indigo-50 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-indigo-700 hover:file:bg-indigo-100"
+              />
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-700">
+                Indeks Halaman PDF (Mulai dari 0)
+              </label>
+              <input
+                type="number"
+                min={0}
+                value={halamanPdf}
+                onChange={(e) => setHalamanPdf(Number(e.target.value))}
+                className="w-28 rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={sedangMemprosesSoal}
+              className="rounded-lg bg-indigo-600 px-5 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 disabled:opacity-50"
+            >
+              {sedangMemprosesSoal
+                ? "Sedang Memproses & Memparafrase..."
+                : "Proses & Parafrase Soal"}
+            </button>
+          </form>
+        )}
+
+        {tabInputSoal === "teks_ai" && (
+          <form onSubmit={tanganiImporTeksAtauCsv} className="mt-5 space-y-3">
+            <label className="block text-xs font-medium text-slate-700">
+              Tempel Teks Soal Mentah (dari Word, PDF, atau catatan — bisa
+              beberapa soal sekaligus)
+            </label>
+            <textarea
+              rows={5}
+              value={teksImporMentah}
+              onChange={(e) => setTeksImporMentah(e.target.value)}
+              placeholder={
+                "Contoh:\n1. Seorang ASN ditawari hadiah oleh peserta lelang proyek instansi. Sikap paling berintegritas adalah...\nA. Menerima secara diam-diam\nB. Menolak tegas dan melapor ke UPG (Kunci: B)..."
+              }
+              className="w-full rounded-xl border border-slate-300 bg-slate-50/50 p-3.5 text-sm leading-relaxed text-slate-900 focus:border-indigo-500 focus:bg-white focus:outline-none"
+            />
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p className="text-xs text-slate-500">
+                Langsung diproses AI di Next.js menjadi draf terklasifikasi
+                TWK/TIU/TKP lengkap dengan pembahasan.
+              </p>
+              <button
+                type="submit"
+                disabled={sedangMemprosesSoal}
+                className="rounded-lg bg-indigo-600 px-5 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 disabled:opacity-50"
+              >
+                {sedangMemprosesSoal
+                  ? "Menyusun Soal dari Teks..."
+                  : "Susun Teks Jadi Draf Soal"}
+              </button>
+            </div>
+          </form>
+        )}
+
+        {tabInputSoal === "csv_json" && (
+          <form onSubmit={tanganiImporTeksAtauCsv} className="mt-5 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-3">
+                <input
+                  type="file"
+                  accept=".csv,.json,.txt,text/csv,application/json"
+                  onChange={(e) =>
+                    void tanganiBacaBerkasTeks(e.target.files?.[0] || null)
+                  }
+                  className="block text-xs text-slate-700 file:mr-3 file:rounded-lg file:border-0 file:bg-indigo-50 file:px-3.5 file:py-2 file:text-xs file:font-semibold file:text-indigo-700 hover:file:bg-indigo-100"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTeksImporMentah(CONTOH_FORMAT_CSV_SOAL);
+                    setGalatSoal(null);
+                  }}
+                  className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                >
+                  Isi Contoh Format CSV
+                </button>
+              </div>
+              <span className="text-xs text-slate-500">
+                Tidak memerlukan API Key AI / server tambahan
+              </span>
+            </div>
+
+            <textarea
+              rows={5}
+              value={teksImporMentah}
+              onChange={(e) => setTeksImporMentah(e.target.value)}
+              placeholder="Tempel CSV (pemisah titik koma `;`) atau JSON array soal di sini..."
+              className="w-full rounded-xl border border-slate-300 bg-slate-50/50 p-3.5 font-mono text-xs leading-relaxed text-slate-900 focus:border-indigo-500 focus:bg-white focus:outline-none"
+            />
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p className="text-xs text-slate-500">
+                Kolom CSV:{" "}
+                <code className="rounded bg-slate-100 px-1 py-0.5">
+                  kategori;sub_topik;kesulitan;pertanyaan;opsi_a;opsi_b;opsi_c;opsi_d;opsi_e;kunci_atau_skor;pembahasan;referensi
+                </code>
+              </p>
+              <button
+                type="submit"
+                disabled={sedangMemprosesSoal}
+                className="rounded-lg bg-indigo-600 px-5 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 disabled:opacity-50"
+              >
+                {sedangMemprosesSoal
+                  ? "Mengurai CSV / JSON..."
+                  : "Urai CSV / JSON ke Draf"}
+              </button>
+            </div>
+          </form>
+        )}
+
+        {galatSoal && (
+          <div className="mt-4 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-800">
+            {galatSoal}
+          </div>
+        )}
 
         {pesanSoal && (
           <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-900">
@@ -345,7 +631,7 @@ export default function HalamanStudioKurasiSoal() {
             </p>
           </div>
 
-          {/* Navigasi Daftar Soal Hasil Ekstraksi */}
+          {/* Navigasi Daftar Soal & Tambah Soal Manual */}
           <div className="flex flex-wrap items-center gap-2">
             {daftarDrafSoal.map((butir, idx) => (
               <button
@@ -362,6 +648,22 @@ export default function HalamanStudioKurasiSoal() {
                 {butir.status === "disetujui" ? "✓ Disetujui" : "Draf"}
               </button>
             ))}
+            <button
+              type="button"
+              onClick={tanganiTambahSoalManual}
+              className="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-bold text-indigo-700 transition hover:bg-indigo-100"
+            >
+              + Tambah Soal Manual
+            </button>
+            {daftarDrafSoal.length > 1 && (
+              <button
+                type="button"
+                onClick={tanganiHapusDrafAktif}
+                className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-500 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700"
+              >
+                Hapus Butir Ini
+              </button>
+            )}
           </div>
         </div>
 
@@ -371,33 +673,49 @@ export default function HalamanStudioKurasiSoal() {
             <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-5">
               <div className="mb-3 flex items-center justify-between">
                 <span className="rounded-md bg-amber-200/80 px-2.5 py-1 text-xs font-bold text-amber-950">
-                  NASKAH ASLI (DOKUMEN SUMBER)
+                  {soalAktif.teks_soal_asli
+                    ? "NASKAH ASLI (DOKUMEN SUMBER)"
+                    : "CATATAN INPUT MANUAL ADMIN"}
                 </span>
                 <span className="text-xs font-medium text-amber-800">
-                  Hanya Acuan Kurator — Tidak Dipublikasikan
+                  {soalAktif.teks_soal_asli
+                    ? "Hanya Acuan Kurator — Tidak Dipublikasikan"
+                    : "Tanpa Dokumen Sumber"}
                 </span>
               </div>
 
-              <div className="mb-4 rounded-lg border border-amber-200 bg-white p-4 text-sm leading-relaxed text-slate-800">
-                {soalAktif.teks_soal_asli}
-              </div>
+              {soalAktif.teks_soal_asli ? (
+                <>
+                  <div className="mb-4 rounded-lg border border-amber-200 bg-white p-4 text-sm leading-relaxed text-slate-800">
+                    {soalAktif.teks_soal_asli}
+                  </div>
 
-              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-600">
-                Pilihan Jawaban pada Dokumen Sumber
-              </h3>
-              <ul className="space-y-2 text-sm">
-                {soalAktif.pilihan_asli.map((opsi) => (
-                  <li
-                    key={opsi.kunci}
-                    className="flex items-start gap-2.5 rounded-lg border border-amber-100 bg-white px-3 py-2 text-slate-700"
-                  >
-                    <span className="font-bold text-slate-900">
-                      {opsi.kunci}.
-                    </span>
-                    <span>{opsi.teks}</span>
-                  </li>
-                ))}
-              </ul>
+                  <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-600">
+                    Pilihan Jawaban pada Dokumen Sumber
+                  </h3>
+                  <ul className="space-y-2 text-sm">
+                    {soalAktif.pilihan_asli.map((opsi) => (
+                      <li
+                        key={opsi.kunci}
+                        className="flex items-start gap-2.5 rounded-lg border border-amber-100 bg-white px-3 py-2 text-slate-700"
+                      >
+                        <span className="font-bold text-slate-900">
+                          {opsi.kunci}.
+                        </span>
+                        <span>{opsi.teks}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              ) : (
+                <div className="rounded-lg border border-amber-200 bg-white p-4 text-sm leading-relaxed text-slate-600">
+                  Soal ini dibuat langsung secara manual oleh Admin. Silakan
+                  lengkapi kategori, kisi-kisi resmi, pokok soal, pilihan
+                  jawaban A–E beserta bobot skornya, dan pembahasan pada formulir
+                  di sebelah kanan, lalu klik{" "}
+                  <strong>Setujui &amp; Simpan ke Bank Soal</strong>.
+                </div>
+              )}
             </div>
 
             {/* KOLOM KANAN: HASIL PARAFRASE AI & FORMULIR PENYUNTINGAN */}
@@ -572,10 +890,22 @@ export default function HalamanStudioKurasiSoal() {
               </div>
 
               {/* Tombol Setujui */}
-              <div className="flex items-center justify-end gap-3 border-t border-emerald-200 pt-4">
+              <div className="flex flex-wrap items-center justify-end gap-3 border-t border-emerald-200 pt-4">
+                {jumlahDrafMenunggu >= 2 && (
+                  <button
+                    type="button"
+                    disabled={sedangMenyetujui || sedangMenyetujuiSemua}
+                    onClick={tanganiSetujuiSemuaDraf}
+                    className="rounded-xl border border-emerald-600 bg-white px-4 py-2.5 text-sm font-bold text-emerald-700 transition hover:bg-emerald-50 disabled:opacity-50"
+                  >
+                    {sedangMenyetujuiSemua
+                      ? "Menyimpan Semua..."
+                      : `Setujui Semua (${jumlahDrafMenunggu} Butir)`}
+                  </button>
+                )}
                 <button
                   type="button"
-                  disabled={sedangMenyetujui}
+                  disabled={sedangMenyetujui || sedangMenyetujuiSemua}
                   onClick={tanganiSetujuiSoal}
                   className="rounded-xl bg-emerald-600 px-6 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-emerald-700 disabled:opacity-50"
                 >

@@ -321,3 +321,204 @@ export const CONTOH_HASIL_EKSTRAKSI_SOAL_SKD: DrafKurasiSoal[] = [
     metode_pencarian_rag: "tsvector_bahasa_indonesia",
   },
 ];
+
+export const CONTOH_FORMAT_CSV_SOAL = [
+  "kategori;sub_topik;kesulitan;pertanyaan;opsi_a;opsi_b;opsi_c;opsi_d;opsi_e;kunci_atau_skor;pembahasan;referensi",
+  'TWK;Integritas;sedang;"Pegawai menerima bingkisan hari raya dari rekanan tender yang sedang dievaluasi timnya. Sikap ASN yang paling tepat adalah...";Menerima dengan syarat dibagi rata ke tim;Menolak secara sopan dan melaporkan ke Unit Pengendalian Gratifikasi (UPG);Menitipkan di resepsionis agar tidak terlihat;Meminta rekanan menukar dalam bentuk donasi;Membawanya pulang agar tidak menyinggung pemberi;B;"Setiap pemberian yang berkaitan dengan jabatan dan berpotensi benturan kepentingan wajib ditolak serta dilaporkan kepada UPG/KPK.";"UU No. 20 Tahun 2001 & Nilai Dasar BerAKHLAK"',
+  'TKP;Pelayanan Publik;sedang;"Loket layanan daring mengalami gangguan saat jam sibuk dan antrean lansia menumpuk. Langkah Anda adalah...";Membuka pencatatan manual sementara serta mendahulukan kelompok rentan secara tertib;Meminta seluruh pemohon pulang;Menunggu tim pusat tanpa memberi informasi;Menyuruh pemohon mengantre sampai sore;Menghentikan seluruh layanan loket;5-1-3-2-4;"Nilai tertinggi TKP Pelayanan Publik menunjukkan inisiatif menjaga keberlanjutan layanan serta empati kepada kelompok rentan.";"Kepmenpan-RB Nomor 321 Tahun 2024"',
+].join("\n");
+
+/**
+ * Membuat satu draf soal kosong siap diisi manual oleh Admin di Studio Kurasi.
+ */
+export function buatDrafSoalKosong(
+  kategori: KategoriSubtesSKD = "TWK",
+  nomorUrut: number = 1
+): DrafKurasiSoal {
+  const subTopikDefault = DAFTAR_SUB_TOPIK_RESMI_SKD[kategori][0];
+  const huruf: Array<"A" | "B" | "C" | "D" | "E"> = ["A", "B", "C", "D", "E"];
+  const skorBawaan = kategori === "TKP" ? [5, 4, 3, 2, 1] : [5, 0, 0, 0, 0];
+
+  return {
+    id_sementara: `manual-${Date.now()}-${nomorUrut}`,
+    stage: "SKD",
+    category: kategori,
+    sub_topic: subTopikDefault,
+    difficulty: "sedang",
+    teks_soal_asli: "",
+    pilihan_asli: [],
+    question_text: "",
+    image_url: null,
+    options: huruf.map((kunci, idx) => ({
+      kunci,
+      teks: "",
+      skor: skorBawaan[idx],
+    })),
+    explanation: "",
+    source_reference: `Kepmenpan-RB Nomor 321 Tahun 2024 — ${kategori} (${subTopikDefault})`,
+    is_paraphrased: false,
+    status: "draf",
+    metode_pencarian_rag: "tsvector_bahasa_indonesia",
+  };
+}
+
+function pisahBarisCsv(baris: string, pemisah: ";" | ","): string[] {
+  const hasil: string[] = [];
+  let nilai = "";
+  let dalamKutip = false;
+
+  for (let i = 0; i < baris.length; i++) {
+    const ch = baris[i];
+    if (ch === '"') {
+      if (dalamKutip && baris[i + 1] === '"') {
+        nilai += '"';
+        i += 1;
+      } else {
+        dalamKutip = !dalamKutip;
+      }
+      continue;
+    }
+    if (ch === pemisah && !dalamKutip) {
+      hasil.push(nilai.trim());
+      nilai = "";
+      continue;
+    }
+    nilai += ch;
+  }
+  hasil.push(nilai.trim());
+  return hasil;
+}
+
+function terjemahkanSkorMassal(
+  kategori: KategoriSubtesSKD,
+  kolomKunci: string
+): number[] {
+  const bersih = kolomKunci.trim();
+  const daftarAngka = bersih
+    .split(/[-,\s|/]+/)
+    .map((x) => Number(x))
+    .filter((n) => Number.isFinite(n));
+
+  if (daftarAngka.length === 5) {
+    return daftarAngka;
+  }
+
+  const indeksHuruf: Record<string, number> = {
+    A: 0,
+    B: 1,
+    C: 2,
+    D: 3,
+    E: 4,
+  };
+  const posisiBenar = indeksHuruf[bersih.toUpperCase()];
+  if (typeof posisiBenar === "number") {
+    if (kategori === "TKP") {
+      // Berikan 5 pada kunci terbaik dan 4..1 pada opsi lainnya
+      let sisaSkor = 4;
+      return [0, 1, 2, 3, 4].map((idx) =>
+        idx === posisiBenar ? 5 : sisaSkor--
+      );
+    }
+    return [0, 1, 2, 3, 4].map((idx) => (idx === posisiBenar ? 5 : 0));
+  }
+
+  return kategori === "TKP" ? [5, 4, 3, 2, 1] : [5, 0, 0, 0, 0];
+}
+
+/**
+ * Mengurai impor massal soal dalam format JSON (array atau { daftar_soal })
+ * maupun CSV/TSV berpemisah `;` atau `,` menjadi draf siap kurasi.
+ */
+export function uraiImporMassalCsvAtauJson(teks: string): DrafKurasiSoal[] {
+  const bersih = teks.trim();
+  if (!bersih) {
+    throw new Error("Teks impor CSV/JSON tidak boleh kosong.");
+  }
+
+  if (bersih.startsWith("[") || bersih.startsWith("{")) {
+    const dataJson = uraiJsonAI<
+      Record<string, unknown>[] | { daftar_soal?: Record<string, unknown>[] }
+    >(bersih);
+    const daftarMentah = Array.isArray(dataJson)
+      ? dataJson
+      : Array.isArray(dataJson.daftar_soal)
+        ? dataJson.daftar_soal
+        : [];
+    const hasilJson = daftarMentah
+      .map((item, idx) => normalisasiButirSoalEkstraksi(item, idx))
+      .filter((butir) => Boolean(butir.question_text));
+    if (hasilJson.length === 0) {
+      throw new Error(
+        "JSON valid tetapi tidak ditemukan butir soal dengan kolom 'question_text'."
+      );
+    }
+    return hasilJson;
+  }
+
+  const semuaBaris = bersih
+    .split(/\r?\n/)
+    .map((b) => b.trim())
+    .filter(Boolean);
+
+  if (semuaBaris.length === 0) {
+    throw new Error("Tidak ada baris soal pada masukan CSV.");
+  }
+
+  const barisPertama = semuaBaris[0];
+  const pemisah: ";" | "," = barisPertama.includes(";") ? ";" : ",";
+  const selPertama = pisahBarisCsv(barisPertama, pemisah);
+  const adalahHeader =
+    /^(kategori|category)$/i.test(selPertama[0] || "") ||
+    /pertanyaan|question_text/i.test(selPertama[3] || "");
+  const barisData = adalahHeader ? semuaBaris.slice(1) : semuaBaris;
+
+  const hasilCsv: DrafKurasiSoal[] = [];
+  const huruf: Array<"A" | "B" | "C" | "D" | "E"> = ["A", "B", "C", "D", "E"];
+
+  barisData.forEach((baris, idx) => {
+    const sel = pisahBarisCsv(baris, pemisah);
+    if (sel.length < 10) {
+      return;
+    }
+    const katMentah = (sel[0] || "TWK").toUpperCase();
+    const kategori: KategoriSubtesSKD =
+      katMentah === "TIU" || katMentah === "TKP" ? katMentah : "TWK";
+    const subTopik = sel[1] || "";
+    const kesulitan = sel[2] || "sedang";
+    const pertanyaan = sel[3] || "";
+    if (!pertanyaan.trim()) return;
+
+    const bobot = terjemahkanSkorMassal(kategori, sel[9] || "A");
+    const opsi = huruf.map((kunci, iOpsi) => ({
+      kunci,
+      teks: sel[4 + iOpsi] || `Pilihan ${kunci}`,
+      skor: bobot[iOpsi] ?? 0,
+    }));
+
+    hasilCsv.push(
+      normalisasiButirSoalEkstraksi(
+        {
+          id_sementara: `impor-${idx + 1}`,
+          category: kategori,
+          sub_topic: subTopik,
+          difficulty: kesulitan,
+          teks_soal_asli: pertanyaan,
+          question_text: pertanyaan,
+          options: opsi,
+          explanation: sel[10] || "",
+          source_reference: sel[11] || "",
+          status: "draf",
+        },
+        idx
+      )
+    );
+  });
+
+  if (hasilCsv.length === 0) {
+    throw new Error(
+      "Format CSV tidak terbaca. Gunakan 12 kolom berurutan (pemisah `;`): kategori;sub_topik;kesulitan;pertanyaan;opsi_a;opsi_b;opsi_c;opsi_d;opsi_e;kunci_atau_skor;pembahasan;referensi."
+    );
+  }
+
+  return hasilCsv;
+}

@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
-import { ekstrakSesiDariHeaderCookie } from "@/lib/admin-auth";
+import {
+  bacaDaftarAkunAdminPublik,
+  ekstrakSesiDariHeaderCookie,
+} from "@/lib/admin-auth";
 import { buatEmbeddingTeks } from "@/lib/ai-client";
 import { normalisasiButirSoalEkstraksi } from "@/lib/ingestion-pipeline";
 import { buatKlienSupabaseServer } from "@/lib/supabase";
@@ -11,6 +14,17 @@ export async function POST(request: Request) {
       {
         status: "gagal",
         pesan: "Silakan masuk ke Menu Admin terlebih dahulu untuk menyetujui soal.",
+      },
+      { status: 401 }
+    );
+  }
+
+  const daftarAdmin = await bacaDaftarAkunAdminPublik();
+  if (!daftarAdmin.some((akun) => akun.id === sesiAdmin.id)) {
+    return NextResponse.json(
+      {
+        status: "gagal",
+        pesan: "Sesi admin tidak lagi aktif. Silakan masuk kembali.",
       },
       { status: 401 }
     );
@@ -48,7 +62,10 @@ export async function POST(request: Request) {
         options: soalNormal.options,
         explanation: soalNormal.explanation,
         source_reference: soalNormal.source_reference,
-        is_paraphrased: true,
+        is_paraphrased:
+          typeof badan.is_paraphrased === "boolean"
+            ? badan.is_paraphrased
+            : true,
         status: "disetujui",
         embedding: vektorEmbedding,
       });
@@ -62,8 +79,9 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       status: "berhasil",
-      pesan:
-        "Soal berhasil disetujui (status = 'disetujui') dan siap digunakan pada Bank Soal Simulasi SKD.",
+      pesan: tersimpanDiBasisData
+        ? "Soal berhasil disetujui dan tersimpan ke basis data Supabase (siap tampil di Simulasi CAT SKD)."
+        : "Soal disetujui di pratinjau lokal, namun basis data Supabase belum tersambung sehingga belum tersimpan permanen.",
       tersimpan_di_basis_data: tersimpanDiBasisData,
       metode_pencarian_rag: vektorEmbedding
         ? "pgvector_768"

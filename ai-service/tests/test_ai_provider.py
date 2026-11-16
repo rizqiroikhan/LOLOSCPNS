@@ -8,6 +8,7 @@ from app.math_verifier import (
     prediksi_suku_berikutnya_deret,
     verifikasi_butir_soal_ai,
 )
+from app.tutor_rag import peringkat_ulang_hybrid_rrf
 
 
 def test_konfigurasi_ai_dari_env_default():
@@ -89,3 +90,20 @@ def test_verifikasi_numerik_dan_circuit_breaker():
     metrik = provider.dapatkan_metrik_ai()
     assert metrik["total_gagal"] == 2
     assert metrik["status_circuit_breaker"]["gemini_free"] == "terbuka"
+
+
+def test_peringkat_ulang_hybrid_rrf():
+    kandidat = [
+        {"id": "q-aktif", "sub_topic": "Integritas", "skor_vektor": 0.99, "skor_teks": 0.9},
+        {"id": "q-dua-sinyal", "sub_topic": "Integritas", "skor_vektor": 0.85, "skor_teks": 0.8},
+        {"id": "q-lemah", "sub_topic": "Nasionalisme", "skor_vektor": 0.1, "skor_teks": 0.1},
+    ]
+    hasil = peringkat_ulang_hybrid_rrf(
+        kandidat=kandidat,
+        sub_topik_target="Integritas",
+        id_kecualikan="q-aktif",
+        ambang_rrf=0.015,
+        batas=2,
+    )
+    assert all(item["id"] != "q-aktif" for item in hasil)
+    assert hasil[0]["id"] == "q-dua-sinyal"

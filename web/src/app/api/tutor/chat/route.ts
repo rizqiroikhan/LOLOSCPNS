@@ -10,6 +10,7 @@ import {
   tambahPemakaianAIHariIni,
 } from "@/lib/commercial-store";
 import { buatBimbinganSokratikKontekstual } from "@/lib/gap-analyzer";
+import { ambilKonteksHybridSKD } from "@/lib/hybrid-retriever";
 import { bacaSesiPesertaDariHeaderCookie } from "@/lib/user-auth";
 import type { QuestionRow } from "@/types/database";
 
@@ -123,7 +124,26 @@ export async function POST(request: Request) {
       // Lanjut ke pemanggilan langsung melalui Adaptor AI Next.js atau panduan lokal
     }
 
-    // 2. Pemanggilan langsung atau panduan kontekstual Sokratik
+    // 2. Pemanggilan langsung via Real Hybrid Retrieval + Socratic Prompting
+    const hasilRetrieval = await ambilKonteksHybridSKD({
+      kueriTeks: `${soal.question_text} ${pertanyaan}`,
+      kategori: soal.category,
+      subTopik: soal.sub_topic,
+      idSoalAktif: soal.id,
+      batas: 2,
+    });
+
+    const teksRujukanTambahan =
+      hasilRetrieval.daftar_rujukan.length > 0
+        ? "\n\nRujukan Konsep & Soal Sejenis dari Bank Terkurasi:\n" +
+          hasilRetrieval.daftar_rujukan
+            .map(
+              (r, idx) =>
+                `${idx + 1}. [${r.sub_topik}] ${r.pembahasan} (Sumber: ${r.referensi})`
+            )
+            .join("\n")
+        : "";
+
     try {
       const kunciTertinggi =
         soal.options?.reduce((a, b) => (b.skor > a.skor ? b : a), soal.options[0])
@@ -137,7 +157,8 @@ export async function POST(request: Request) {
         `Soal: ${soal.question_text}\nPilihan:\n${ringkasOpsi}\n` +
         `Kunci Skor Tertinggi: ${kunciTertinggi}\n` +
         `Pembahasan Resmi: ${soal.explanation}\n` +
-        `Jawaban Peserta: ${jawabanPeserta || "Kosong"}\n\n` +
+        `Jawaban Peserta: ${jawabanPeserta || "Kosong"}` +
+        `${teksRujukanTambahan}\n\n` +
         `Pertanyaan Peserta: ${pertanyaan}`;
 
       const balasan = await panggilChatAI({
@@ -153,6 +174,8 @@ export async function POST(request: Request) {
           ...infoKuotaTerbaru,
           terpakai_hari_ini: pemakaianSetelah,
         },
+        metode_retrieval: hasilRetrieval.metode_retrieval,
+        rujukan_ditemukan: hasilRetrieval.total_ditemukan,
         balasan_tutor: balasan,
       });
     } catch {
@@ -169,6 +192,8 @@ export async function POST(request: Request) {
           ...infoKuotaTerbaru,
           terpakai_hari_ini: pemakaianSetelah,
         },
+        metode_retrieval: hasilRetrieval.metode_retrieval,
+        rujukan_ditemukan: hasilRetrieval.total_ditemukan,
         balasan_tutor: balasanCadangan,
       });
     }

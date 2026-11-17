@@ -33,7 +33,7 @@ async function ambilSoalDisetujuiDariDB(): Promise<QuestionRow[]> {
       .eq("status", "disetujui")
       .order("created_at", { ascending: true })
       .order("id", { ascending: true })
-      .limit(220);
+      .limit(2000);
 
     if (error || !Array.isArray(data)) {
       return [];
@@ -80,6 +80,26 @@ function gabungkanKategori(
   return hasil.slice(0, maks);
 }
 
+function indeksSetPaket(idPaket: string): number {
+  switch (idPaket) {
+    case "paket-intensif-skd":
+    case "paket-terpadu-cpns":
+      return 1;
+    case "paket-akbar-skd-1":
+      return 2;
+    case "paket-akbar-skd-2":
+      return 3;
+    case "paket-akbar-skd-3":
+      return 4;
+    case "paket-akbar-skd-4":
+      return 5;
+    case "paket-akbar-skd-5":
+      return 6;
+    default:
+      return 0;
+  }
+}
+
 /**
  * Menghasilkan tepat 110 soal SKD otoritatif sisi server untuk suatu paket tryout.
  */
@@ -93,27 +113,23 @@ export async function muatBankSoalOtoritatif110(
     return bankBawaan;
   }
 
-  // Untuk paket berbayar, lewati soal DB set pertama jika koleksi DB sangat besar,
-  // atau sisipkan setelah soal set gratis agar dua paket tetap berbeda.
-  const pakaiSetDua =
-    idPaket === "paket-intensif-skd" || idPaket === "paket-terpadu-cpns";
-
+  const indeks = indeksSetPaket(idPaket);
   const dbTwk = soalDb.filter((q) => q.category === "TWK");
   const dbTiu = soalDb.filter((q) => q.category === "TIU");
   const dbTkp = soalDb.filter((q) => q.category === "TKP");
 
   const twkTerpilih = gabungkanKategori(
-    pakaiSetDua ? dbTwk.slice(30) : dbTwk.slice(0, 30),
+    dbTwk.slice(indeks * 30, (indeks + 1) * 30),
     bankBawaan.filter((q) => q.category === "TWK"),
     30
   );
   const tiuTerpilih = gabungkanKategori(
-    pakaiSetDua ? dbTiu.slice(35) : dbTiu.slice(0, 35),
+    dbTiu.slice(indeks * 35, (indeks + 1) * 35),
     bankBawaan.filter((q) => q.category === "TIU"),
     35
   );
   const tkpTerpilih = gabungkanKategori(
-    pakaiSetDua ? dbTkp.slice(45) : dbTkp.slice(0, 45),
+    dbTkp.slice(indeks * 45, (indeks + 1) * 45),
     bankBawaan.filter((q) => q.category === "TKP"),
     45
   );

@@ -92,6 +92,92 @@ export const DAFTAR_PAKET_LANGGANAN: Record<string, PaketLanggananResmi> = {
   },
 };
 
+export interface DefinisiPaketAkbarSKD {
+  id_paket: string;
+  nomor_paket: number;
+  judul: string;
+  fokus: string;
+  deskripsi: string;
+}
+
+export const DAFTAR_PAKET_AKBAR_SKD: DefinisiPaketAkbarSKD[] = [
+  {
+    id_paket: "paket-akbar-skd-1",
+    nomor_paket: 1,
+    judul: "Simulasi Akbar SKD — Seri 1 (Pilar & Penalaran)",
+    fokus: "Penguatan Pilar Negara, Silogisme, & Pelayanan Publik",
+    deskripsi:
+      "110 soal CAT SKD terparafrase dengan penguatan penalaran konstitusi, verbal analitis, serta studi kasus pelayanan publik.",
+  },
+  {
+    id_paket: "paket-akbar-skd-2",
+    nomor_paket: 2,
+    judul: "Simulasi Akbar SKD — Seri 2 (Numerik & Integritas)",
+    fokus: "Hitung Cepat, Deret Angka, & Integritas ASN",
+    deskripsi:
+      "110 soal CAT SKD terkurasi dengan latihan ketepatan numerik terverifikasi serta dilema integritas dan antikorupsi.",
+  },
+  {
+    id_paket: "paket-akbar-skd-3",
+    nomor_paket: 3,
+    judul: "Simulasi Akbar SKD — Seri 3 (HOTS Nasionalisme)",
+    fokus: "Analisis Kebangsaan, Perbandingan Kuantitatif, & TIK",
+    deskripsi:
+      "110 soal CAT SKD tingkat HOTS yang memadukan konteks nasionalisme kontemporer, soal cerita, dan literasi digital ASN.",
+  },
+  {
+    id_paket: "paket-akbar-skd-4",
+    nomor_paket: 4,
+    judul: "Simulasi Akbar SKD — Seri 4 (Bela Negara & Figural)",
+    fokus: "Ketahanan Nasional, Figural Spasial, & Profesionalisme",
+    deskripsi:
+      "110 soal CAT SKD dengan kombinasi latihan spasial figural, pemahaman bela negara, dan jejaring kerja lintas instansi.",
+  },
+  {
+    id_paket: "paket-akbar-skd-5",
+    nomor_paket: 5,
+    judul: "Simulasi Akbar SKD — Seri 5 (Tryout Pemantapan Akhir)",
+    fokus: "Bahasa Negara, Penalaran Terpadu, & Anti Radikalisme",
+    deskripsi:
+      "110 soal CAT SKD pemantapan akhir dengan komposisi penuh 21 sub-topik Kepmenpan-RB Nomor 321 Tahun 2024.",
+  },
+];
+
+export const DAFTAR_SESI_SIMULASI_SKD: Record<string, PaketLanggananResmi> =
+  Object.fromEntries(
+    DAFTAR_PAKET_AKBAR_SKD.map((item) => [
+      item.id_paket,
+      {
+        id_paket: item.id_paket,
+        kode_tingkat: "intensif_skd" as TingkatLanggananPeserta,
+        stage: "SKD" as TahapPaketSimulasi,
+        judul: item.judul,
+        deskripsi: item.deskripsi,
+        harga_idr: DAFTAR_PAKET_LANGGANAN["paket-intensif-skd"].harga_idr,
+        gratis: false,
+        kuota_tutor_harian:
+          DAFTAR_PAKET_LANGGANAN["paket-intensif-skd"].kuota_tutor_harian,
+        fitur_utama: DAFTAR_PAKET_LANGGANAN["paket-intensif-skd"].fitur_utama,
+      },
+    ])
+  );
+
+export function dapatkanInfoPaketSimulasi(
+  idPaket: string
+): PaketLanggananResmi | undefined {
+  return (
+    DAFTAR_PAKET_LANGGANAN[idPaket] || DAFTAR_SESI_SIMULASI_SKD[idPaket]
+  );
+}
+
+export function dapatkanUrlUpgradeUntukPaket(idPaket: string): string {
+  const info = dapatkanInfoPaketSimulasi(idPaket);
+  if (info?.kode_tingkat === "terpadu_cpns") {
+    return "/pembayaran?paket=paket-terpadu-cpns";
+  }
+  return "/pembayaran?paket=paket-intensif-skd";
+}
+
 export interface HasilEvaluasiAksesPaket {
   diizinkan: boolean;
   tingkatSaatIni: TingkatLanggananPeserta;
@@ -110,7 +196,7 @@ export function evaluasiAksesPaketSimulasi(parameter: {
 }): HasilEvaluasiAksesPaket {
   const { idPaket, tingkatLangganan } = parameter;
   const infoPaket =
-    DAFTAR_PAKET_LANGGANAN[idPaket] ||
+    dapatkanInfoPaketSimulasi(idPaket) ||
     DAFTAR_PAKET_LANGGANAN["paket-perdana-gratis"];
 
   if (infoPaket.gratis) {

@@ -30,6 +30,28 @@ describe("Monetisasi, Kendali Akses Paket, & Pembatasan Laju AI (Fase 5)", () =>
       tingkatLangganan: "intensif_skd",
     });
     assert.equal(aksesTerbukaSetelahBayar.diizinkan, true);
+
+    for (let seri = 1; seri <= 5; seri += 1) {
+      const idPaketAkbar = `paket-akbar-skd-${seri}`;
+      const terkunciGratis = evaluasiAksesPaketSimulasi({
+        idPaket: idPaketAkbar,
+        tingkatLangganan: "gratis",
+      });
+      assert.equal(terkunciGratis.diizinkan, false);
+      assert.equal(terkunciGratis.hargaIdr, 49000);
+
+      const terbukaIntensif = evaluasiAksesPaketSimulasi({
+        idPaket: idPaketAkbar,
+        tingkatLangganan: "intensif_skd",
+      });
+      assert.equal(terbukaIntensif.diizinkan, true);
+
+      const terbukaTerpadu = evaluasiAksesPaketSimulasi({
+        idPaket: idPaketAkbar,
+        tingkatLangganan: "terpadu_cpns",
+      });
+      assert.equal(terbukaTerpadu.diizinkan, true);
+    }
   });
 
   it("membatasi kuota harian Tutor AI Sokratik untuk akun gratis (5 pertanyaan) dan membuka kuota besar untuk akun berbayar", () => {

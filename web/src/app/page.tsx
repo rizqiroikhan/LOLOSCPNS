@@ -771,7 +771,7 @@ export default function HalamanUtama() {
                 </p>
                 <ul className="mt-6 space-y-3 text-sm text-slate-700">
                   {[
-                    "Semua Paket Simulasi Akbar CAT SKD (110 Soal)",
+                    "7 Paket Simulasi Akbar CAT SKD (770 Soal Unik)",
                     "Analisis Kesenjangan Nilai per Sub-Topik Kisi-Kisi",
                     "Tanya Jawab Interaktif Bersama Tutor AI Pembimbing",
                     "Latihan Perbaikan Adaptif pada Materi Terlemah",

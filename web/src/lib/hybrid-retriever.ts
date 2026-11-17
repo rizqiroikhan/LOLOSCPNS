@@ -9,7 +9,7 @@
  */
 
 import { buatEmbeddingTeks } from "./ai-client.ts";
-import { bangunBankSoalSimulasi110 } from "./cat-question-bank.ts";
+import { bangunSemuaBankSoalSimulasi } from "./cat-question-bank.ts";
 import { buatKlienSupabaseServer } from "./supabase.ts";
 
 export interface DokumenKandidatRetrieval {
@@ -196,9 +196,7 @@ function cariDiBankLokalDenganRRF(parameter: {
   idKecualikan?: string;
   batas: number;
 }): HasilRujukanRAG[] {
-  const bankSet1 = bangunBankSoalSimulasi110("paket-perdana-gratis");
-  const bankSet2 = bangunBankSoalSimulasi110("paket-intensif-skd");
-  const semuaKandidat = [...bankSet1, ...bankSet2].filter((s) =>
+  const semuaKandidat = bangunSemuaBankSoalSimulasi().filter((s) =>
     parameter.kategori
       ? s.category.toUpperCase() === parameter.kategori.toUpperCase()
       : true

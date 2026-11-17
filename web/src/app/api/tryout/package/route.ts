@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import {
-  DAFTAR_PAKET_LANGGANAN,
+  dapatkanInfoPaketSimulasi,
+  dapatkanUrlUpgradeUntukPaket,
   evaluasiAksesPaketSimulasi,
 } from "@/lib/access-control";
 import { hapusKunciJawabanUntukUjian } from "@/lib/cat-question-bank";
@@ -12,7 +13,7 @@ export async function GET(request: Request) {
     const url = new URL(request.url);
     const idPaket = (url.searchParams.get("id") || "paket-perdana-gratis").trim();
 
-    const infoPaket = DAFTAR_PAKET_LANGGANAN[idPaket];
+    const infoPaket = dapatkanInfoPaketSimulasi(idPaket);
     if (!infoPaket) {
       return NextResponse.json(
         {
@@ -41,7 +42,7 @@ export async function GET(request: Request) {
           paket: infoPaket,
           tingkat_dimiliki: tingkatLangganan,
           pesan: akses.pesanAkses,
-          url_upgrade: `/pembayaran?paket=${encodeURIComponent(idPaket)}`,
+          url_upgrade: dapatkanUrlUpgradeUntukPaket(idPaket),
         },
         { status: 403 }
       );

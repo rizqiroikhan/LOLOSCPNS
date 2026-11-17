@@ -14,9 +14,24 @@ import type {
   QuestionRow,
   TingkatKesulitanSoal,
 } from "../types/database.ts";
-import { BANK_SOAL_TIU_SET_1, BANK_SOAL_TIU_SET_2 } from "./bank-soal-tiu.ts";
-import { BANK_SOAL_TKP_SET_1, BANK_SOAL_TKP_SET_2 } from "./bank-soal-tkp.ts";
-import { BANK_SOAL_TWK_SET_1, BANK_SOAL_TWK_SET_2 } from "./bank-soal-twk.ts";
+import {
+  BANK_SOAL_TIU_SET_1,
+  BANK_SOAL_TIU_SET_2,
+  type DefinisiButirTIU,
+} from "./bank-soal-tiu.ts";
+import { BANK_SOAL_TIU_AKBAR_SETS } from "./bank-soal-tiu-akbar.ts";
+import {
+  BANK_SOAL_TKP_SET_1,
+  BANK_SOAL_TKP_SET_2,
+  type DefinisiButirTKP,
+} from "./bank-soal-tkp.ts";
+import { BANK_SOAL_TKP_AKBAR_SETS } from "./bank-soal-tkp-akbar.ts";
+import {
+  BANK_SOAL_TWK_SET_1,
+  BANK_SOAL_TWK_SET_2,
+  type DefinisiButirTWK,
+} from "./bank-soal-twk.ts";
+import { BANK_SOAL_TWK_AKBAR_SETS } from "./bank-soal-twk-akbar.ts";
 
 export interface SoalSimulasiCAT extends QuestionRow {
   nomor_urut: number;
@@ -173,19 +188,60 @@ function buatOpsiPilihanGanda(
   }));
 }
 
+export const DAFTAR_ID_PAKET_SIMULASI_RESMI = [
+  "paket-perdana-gratis",
+  "paket-intensif-skd",
+  "paket-akbar-skd-1",
+  "paket-akbar-skd-2",
+  "paket-akbar-skd-3",
+  "paket-akbar-skd-4",
+  "paket-akbar-skd-5",
+] as const;
+
+const PETA_SET_AKBAR: Record<
+  string,
+  { awalanId: string; indeksAkbar: number }
+> = {
+  "paket-akbar-skd-1": { awalanId: "akb1", indeksAkbar: 0 },
+  "paket-akbar-skd-2": { awalanId: "akb2", indeksAkbar: 1 },
+  "paket-akbar-skd-3": { awalanId: "akb3", indeksAkbar: 2 },
+  "paket-akbar-skd-4": { awalanId: "akb4", indeksAkbar: 3 },
+  "paket-akbar-skd-5": { awalanId: "akb5", indeksAkbar: 4 },
+};
+
+function pilihSumberSetSoal(idPaket?: string): {
+  awalanId: string;
+  setTwk: DefinisiButirTWK[];
+  setTiu: DefinisiButirTIU[];
+  setTkp: DefinisiButirTKP[];
+} {
+  if (idPaket && idPaket in PETA_SET_AKBAR) {
+    const { awalanId, indeksAkbar } = PETA_SET_AKBAR[idPaket];
+    return {
+      awalanId,
+      setTwk: BANK_SOAL_TWK_AKBAR_SETS[indeksAkbar],
+      setTiu: BANK_SOAL_TIU_AKBAR_SETS[indeksAkbar],
+      setTkp: BANK_SOAL_TKP_AKBAR_SETS[indeksAkbar],
+    };
+  }
+  const pakaiSetDua =
+    idPaket === "paket-intensif-skd" || idPaket === "paket-terpadu-cpns";
+  return {
+    awalanId: pakaiSetDua ? "int" : "skd",
+    setTwk: pakaiSetDua ? BANK_SOAL_TWK_SET_2 : BANK_SOAL_TWK_SET_1,
+    setTiu: pakaiSetDua ? BANK_SOAL_TIU_SET_2 : BANK_SOAL_TIU_SET_1,
+    setTkp: pakaiSetDua ? BANK_SOAL_TKP_SET_2 : BANK_SOAL_TKP_SET_1,
+  };
+}
+
 /**
  * Membangun paket lengkap 110 soal simulasi CAT SKD berdasarkan paket tryout.
  * - `paket-perdana-gratis` (atau default): Set 1 (110 butir soal unik)
  * - `paket-intensif-skd` / `paket-terpadu-cpns`: Set 2 (110 butir soal unik berbeda total)
+ * - `paket-akbar-skd-1` .. `paket-akbar-skd-5`: 5 paket Akbar (@ 110 butir soal unik)
  */
 export function bangunBankSoalSimulasi110(idPaket?: string): SoalSimulasiCAT[] {
-  const pakaiSetDua =
-    idPaket === "paket-intensif-skd" || idPaket === "paket-terpadu-cpns";
-  const awalanId = pakaiSetDua ? "int" : "skd";
-
-  const setTwk = pakaiSetDua ? BANK_SOAL_TWK_SET_2 : BANK_SOAL_TWK_SET_1;
-  const setTiu = pakaiSetDua ? BANK_SOAL_TIU_SET_2 : BANK_SOAL_TIU_SET_1;
-  const setTkp = pakaiSetDua ? BANK_SOAL_TKP_SET_2 : BANK_SOAL_TKP_SET_1;
+  const { awalanId, setTwk, setTiu, setTkp } = pilihSumberSetSoal(idPaket);
 
   const daftar110: SoalSimulasiCAT[] = [];
 
@@ -260,6 +316,16 @@ export function bangunBankSoalSimulasi110(idPaket?: string): SoalSimulasiCAT[] {
   });
 
   return daftar110;
+}
+
+/**
+ * Menggabungkan seluruh 7 paket simulasi CAT SKD resmi (770 butir soal unik)
+ * untuk kebutuhan indeks RRF lokal dan pengecekan bank soal lengkap.
+ */
+export function bangunSemuaBankSoalSimulasi(): SoalSimulasiCAT[] {
+  return DAFTAR_ID_PAKET_SIMULASI_RESMI.flatMap((idPaket) =>
+    bangunBankSoalSimulasi110(idPaket)
+  );
 }
 
 /**

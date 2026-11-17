@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import {
-  DAFTAR_PAKET_LANGGANAN,
+  dapatkanInfoPaketSimulasi,
+  dapatkanUrlUpgradeUntukPaket,
   evaluasiAksesPaketSimulasi,
 } from "@/lib/access-control";
 import { simpanRiwayatTryoutPeserta } from "@/lib/commercial-store";
@@ -17,7 +18,7 @@ export async function POST(request: Request) {
   try {
     const badan = await request.json();
     const idPaket = String(badan.package_id || "paket-perdana-gratis").trim();
-    const infoPaket = DAFTAR_PAKET_LANGGANAN[idPaket];
+    const infoPaket = dapatkanInfoPaketSimulasi(idPaket);
 
     if (!infoPaket) {
       return NextResponse.json(
@@ -44,7 +45,7 @@ export async function POST(request: Request) {
           status: "terkunci",
           butuh_masuk: !profil,
           pesan: akses.pesanAkses,
-          url_upgrade: `/pembayaran?paket=${encodeURIComponent(idPaket)}`,
+          url_upgrade: dapatkanUrlUpgradeUntukPaket(idPaket),
         },
         { status: 403 }
       );

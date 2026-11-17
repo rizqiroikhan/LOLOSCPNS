@@ -12,12 +12,18 @@ import {
   ClipboardList,
   CreditCard,
   Layers,
+  Lock,
   LogOut,
+  Play,
   ShieldCheck,
   Sparkles,
 } from "lucide-react";
 import NavbarPeserta from "@/components/NavbarPeserta";
-import { DAFTAR_PAKET_LANGGANAN } from "@/lib/access-control";
+import {
+  DAFTAR_PAKET_AKBAR_SKD,
+  DAFTAR_PAKET_LANGGANAN,
+  dapatkanInfoPaketSimulasi,
+} from "@/lib/access-control";
 
 interface ProfilDasbor {
   id: string;
@@ -253,8 +259,8 @@ export default function HalamanDasborPeserta() {
               </div>
               <p className="mt-3 text-base font-extrabold text-slate-900">
                 {punyaiIntensif
-                  ? "Paket Perdana + Paket Intensif SKD Terbuka"
-                  : "Paket Perdana Gratis Siap Dikerjakan"}
+                  ? "7 Paket Simulasi (770 Soal) Terbuka"
+                  : "1 Paket Gratis + 6 Paket Akbar Terkunci"}
               </p>
               <p className="mt-1 text-xs text-slate-500">
                 Standar Kepmenpan-RB Nomor 321 Tahun 2024 (TWK, TIU, TKP).
@@ -328,6 +334,116 @@ export default function HalamanDasborPeserta() {
           </div>
         </div>
 
+        {/* Katalog Paket Simulasi CAT SKD (770 Soal) */}
+        <section className="mt-8 rounded-3xl border border-slate-200/90 bg-white p-6 shadow-tactile sm:p-8">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <Layers className="h-5 w-5 text-blue-700" />
+              <div>
+                <h2 className="text-lg font-extrabold text-slate-950">
+                  Katalog Lengkap Simulasi CAT SKD (7 Paket • 770 Soal Unik)
+                </h2>
+                <p className="text-xs text-slate-500">
+                  Seluruh paket disusun mengikuti komposisi 30 TWK + 35 TIU + 45
+                  TKP (Kepmenpan-RB Nomor 321 Tahun 2024).
+                </p>
+              </div>
+            </div>
+            {!punyaiIntensif && (
+              <Link
+                href="/pembayaran?paket=paket-intensif-skd"
+                className="inline-flex items-center gap-1.5 rounded-xl bg-blue-700 px-4 py-2 text-xs font-extrabold text-white transition hover:bg-blue-800"
+              >
+                <span>Buka Semua 7 Paket (Rp49.000)</span>
+                <ArrowRight className="h-3.5 w-3.5" />
+              </Link>
+            )}
+          </div>
+
+          <div className="mt-5 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {[
+              {
+                id_paket: "paket-perdana-gratis",
+                judul: "Simulasi SKD Perdana (Gratis)",
+                fokus: "Paket Pengenalan 110 Soal Lengkap",
+                terbuka: true,
+              },
+              {
+                id_paket: "paket-intensif-skd",
+                judul: "Simulasi Intensif SKD — Paket Utama",
+                fokus: "Paket Dasar Pejuang NIP (110 Soal)",
+                terbuka: punyaiIntensif,
+              },
+              ...DAFTAR_PAKET_AKBAR_SKD.map((p) => ({
+                id_paket: p.id_paket,
+                judul: p.judul,
+                fokus: p.fokus,
+                terbuka: punyaiIntensif,
+              })),
+            ].map((paket) => (
+              <div
+                key={paket.id_paket}
+                className={`flex flex-col justify-between rounded-2xl border p-4 transition ${
+                  paket.terbuka
+                    ? "border-slate-200 bg-slate-50/70 hover:border-blue-200 hover:bg-blue-50/30"
+                    : "border-slate-200/80 bg-slate-50/40"
+                }`}
+              >
+                <div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span
+                      className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-extrabold uppercase ${
+                        paket.terbuka
+                          ? "bg-emerald-100 text-emerald-900"
+                          : "bg-slate-200 text-slate-700"
+                      }`}
+                    >
+                      {paket.terbuka ? (
+                        <>
+                          <CheckCircle2 className="h-3 w-3" />
+                          <span>Siap Dikerjakan</span>
+                        </>
+                      ) : (
+                        <>
+                          <Lock className="h-3 w-3" />
+                          <span>Terkunci</span>
+                        </>
+                      )}
+                    </span>
+                    <span className="font-mono text-[11px] font-bold text-slate-500 font-numeric">
+                      110 Soal
+                    </span>
+                  </div>
+                  <h3 className="mt-2.5 text-sm font-extrabold text-slate-950">
+                    {paket.judul}
+                  </h3>
+                  <p className="mt-1 text-xs text-slate-600">{paket.fokus}</p>
+                </div>
+
+                <div className="mt-4">
+                  {paket.terbuka ? (
+                    <Link
+                      href={`/simulasi/skd/${paket.id_paket}`}
+                      className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-slate-900 px-3 py-2 text-xs font-bold text-white transition hover:bg-blue-700"
+                    >
+                      <Play className="h-3.5 w-3.5" />
+                      <span>Mulai Simulasi</span>
+                    </Link>
+                  ) : (
+                    <Link
+                      href="/pembayaran?paket=paket-intensif-skd"
+                      className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-blue-200 bg-white px-3 py-2 text-xs font-bold text-blue-700 transition hover:bg-blue-50"
+                    >
+                      <Lock className="h-3.5 w-3.5" />
+                      <span>Aktifkan Paket Intensif</span>
+                    </Link>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+
         {/* Riwayat Simulasi CAT SKD */}
         <section className="mt-8 rounded-3xl border border-slate-200/90 bg-white p-6 shadow-tactile sm:p-8">
           <div className="flex items-center gap-2.5">
@@ -357,7 +473,7 @@ export default function HalamanDasborPeserta() {
                 <tbody className="divide-y divide-slate-100">
                   {riwayat_tryout.map((item) => {
                     const namaPaket =
-                      DAFTAR_PAKET_LANGGANAN[item.package_slug]?.judul ||
+                      dapatkanInfoPaketSimulasi(item.package_slug)?.judul ||
                       item.package_slug;
                     return (
                       <tr

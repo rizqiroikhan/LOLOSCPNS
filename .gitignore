@@ -40,6 +40,10 @@ env/
 /web/.data/
 *.admin-store.json
 
+# Sumber PDF/DOCX eksternal & hasil ekstraksi mentah (Jangan di-commit ke GitHub)
+/SKD + SKB + FORMASI CPNS 2024/
+/.staging-soal/
+
 # Misc
 .DS_Store
 *.pem

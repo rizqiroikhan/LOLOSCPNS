@@ -672,6 +672,27 @@ CREATE POLICY "Hanya admin menghapus paket tryout"
   USING (public.apakah_admin_supabase());
 
 -- ------------------------------------------------------------------------------
+-- BAGIAN 4D: PENETAPAN ADMIN (`honnecinnamon@gmail.com`) (0006_set_admin_honnecinnamon.sql)
+-- ------------------------------------------------------------------------------
+INSERT INTO public.profiles (id, email, nama_lengkap, role)
+SELECT
+  u.id,
+  u.email,
+  COALESCE(
+    NULLIF(TRIM(u.raw_user_meta_data ->> 'nama_lengkap'), ''),
+    NULLIF(TRIM(u.raw_user_meta_data ->> 'full_name'), ''),
+    NULLIF(SPLIT_PART(COALESCE(u.email, ''), '@', 1), ''),
+    'Administrator LOLOS CPNS'
+  ),
+  'admin'
+FROM auth.users u
+WHERE LOWER(TRIM(COALESCE(u.email, ''))) = 'honnecinnamon@gmail.com'
+ON CONFLICT (id) DO UPDATE
+  SET role = 'admin',
+      email = COALESCE(EXCLUDED.email, public.profiles.email),
+      updated_at = NOW();
+
+-- ------------------------------------------------------------------------------
 -- BAGIAN 5: KUERI VERIFIKASI OTOMATIS (PASTIKAN SELURUH TABEL `rowsecurity = true`)
 -- ------------------------------------------------------------------------------
 SELECT

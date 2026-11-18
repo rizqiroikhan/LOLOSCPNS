@@ -137,5 +137,17 @@ describe("Guard Keamanan /admin Berbasis @supabase/ssr & RLS", () => {
     assert.match(migrasiSql, /ON public\.regulations/);
     assert.match(migrasiSql, /ON public\.tryout_packages/);
     assert.match(migrasiSql, /apakah_admin_supabase\(\)/);
+
+    const migrasiAdminSeed = fs.readFileSync(
+      path.join(
+        akarRepo,
+        "supabase",
+        "migrations",
+        "0006_set_admin_honnecinnamon.sql"
+      ),
+      "utf-8"
+    );
+    assert.match(migrasiAdminSeed, /honnecinnamon@gmail\.com/);
+    assert.match(migrasiAdminSeed, /'admin'/);
   });
 });

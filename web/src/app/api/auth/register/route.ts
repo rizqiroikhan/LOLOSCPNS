@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { periksaBatasLajuPermintaan } from "@/lib/access-control";
 import {
+  apakahKonfigurasiSupabaseValid,
+  buatKlienSupabaseServer,
+} from "@/lib/supabase";
+import { buatKlienSupabaseSSRRouteHandler } from "@/lib/supabase-admin-ssr";
+import {
   daftarPesertaBaru,
   NAMA_COOKIE_SESI_PESERTA,
 } from "@/lib/user-auth";
@@ -28,10 +33,11 @@ export async function POST(request: Request) {
 
   try {
     const badan = await request.json();
+    const kataSandi = String(badan.kata_sandi || badan.password || "");
     const hasil = await daftarPesertaBaru({
       email: String(badan.email || ""),
       namaLengkap: String(badan.nama_lengkap || badan.nama || ""),
-      kataSandi: String(badan.kata_sandi || badan.password || ""),
+      kataSandi,
     });
 
     if (!hasil.berhasil || !hasil.tokenSesi || !hasil.profil) {
@@ -39,6 +45,28 @@ export async function POST(request: Request) {
         { status: "gagal", pesan: hasil.pesan },
         { status: 400 }
       );
+    }
+
+    const ssr = await buatKlienSupabaseSSRRouteHandler();
+    if (ssr && apakahKonfigurasiSupabaseValid()) {
+      try {
+        const supabaseServer = buatKlienSupabaseServer();
+        const { error: galatBuat } =
+          await supabaseServer.auth.admin.createUser({
+            email: hasil.profil.email,
+            password: kataSandi,
+            email_confirm: true,
+            user_metadata: { nama_lengkap: hasil.profil.nama_lengkap },
+          });
+        if (!galatBuat) {
+          await ssr.supabase.auth.signInWithPassword({
+            email: hasil.profil.email,
+            password: kataSandi,
+          });
+        }
+      } catch {
+        // Biarkan akun peserta tetap terbuat di tabel aplikasi bila Auth Admin sedang tidak terjangkau
+      }
     }
 
     const respons = NextResponse.json(
@@ -49,6 +77,10 @@ export async function POST(request: Request) {
       },
       { status: 201 }
     );
+
+    if (ssr) {
+      ssr.terapkanCookieKeRespons(respons);
+    }
 
     respons.cookies.set(NAMA_COOKIE_SESI_PESERTA, hasil.tokenSesi, {
       httpOnly: true,

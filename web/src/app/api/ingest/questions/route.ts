@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { ekstrakSesiDariHeaderCookie } from "@/lib/admin-auth";
 import { buatEmbeddingTeks, panggilVisionAI } from "@/lib/ai-client";
 import {
   panggilLayananAI,
@@ -11,6 +10,7 @@ import {
   normalisasiButirSoalEkstraksi,
   uraiJsonAI,
 } from "@/lib/ingestion-pipeline";
+import { periksaAdminSupabaseSSR } from "@/lib/supabase-admin-ssr";
 
 const INSTRUKSI_VISION_SOAL =
   "Ekstrak seluruh butir soal pada gambar ini, klasifikasikan ke dalam kategori ('TWK', 'TIU', atau 'TKP') " +
@@ -19,14 +19,14 @@ const INSTRUKSI_VISION_SOAL =
   "Kembalikan JSON dengan kunci 'daftar_soal'.";
 
 export async function POST(request: Request) {
-  const sesiAdmin = ekstrakSesiDariHeaderCookie(request.headers.get("cookie"));
-  if (!sesiAdmin) {
+  const hasilAdmin = await periksaAdminSupabaseSSR();
+  if (!hasilAdmin.sah) {
     return NextResponse.json(
       {
         status: "gagal",
-        pesan: "Silakan masuk ke Menu Admin terlebih dahulu untuk memproses soal.",
+        pesan: hasilAdmin.alasan,
       },
-      { status: 401 }
+      { status: hasilAdmin.statusHttp }
     );
   }
 

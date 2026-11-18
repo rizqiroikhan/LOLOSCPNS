@@ -1,34 +1,30 @@
 import { NextResponse } from "next/server";
-import {
-  bacaDaftarAkunAdminPublik,
-  ekstrakSesiDariHeaderCookie,
-} from "@/lib/admin-auth";
+import { periksaAdminSupabaseSSR } from "@/lib/supabase-admin-ssr";
 
-export async function GET(request: Request) {
+export async function GET() {
   try {
-    const sesi = ekstrakSesiDariHeaderCookie(request.headers.get("cookie"));
-    if (!sesi) {
-      return NextResponse.json({
-        terautentikasi: false,
-        sesi: null,
-      });
-    }
-
-    // Pastikan akun admin masih terdaftar aktif (cocokkan ID atau username agar tahan cold-start)
-    const daftarAkun = await bacaDaftarAkunAdminPublik();
-    const masihAda = daftarAkun.find(
-      (a) => a.id === sesi.id || a.username === sesi.username
-    );
-    if (!masihAda) {
-      return NextResponse.json({
-        terautentikasi: false,
-        sesi: null,
-      });
+    const hasil = await periksaAdminSupabaseSSR();
+    if (!hasil.sah) {
+      return NextResponse.json(
+        {
+          terautentikasi: false,
+          sesi: null,
+          pesan: hasil.alasan,
+        },
+        { status: hasil.statusHttp }
+      );
     }
 
     return NextResponse.json({
       terautentikasi: true,
-      sesi: masihAda,
+      sesi: {
+        id: hasil.admin.id,
+        username: hasil.admin.email,
+        nama_lengkap: hasil.admin.nama_lengkap,
+        peran: hasil.admin.peran,
+        dibuat_oleh: "supabase_auth",
+        created_at: new Date().toISOString(),
+      },
     });
   } catch (err) {
     return NextResponse.json(

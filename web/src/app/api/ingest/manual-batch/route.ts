@@ -1,9 +1,5 @@
 import { NextResponse } from "next/server";
 import { periksaBatasLajuPermintaan } from "@/lib/access-control";
-import {
-  bacaDaftarAkunAdminPublik,
-  ekstrakSesiDariHeaderCookie,
-} from "@/lib/admin-auth";
 import { buatEmbeddingTeks, panggilChatAI } from "@/lib/ai-client";
 import {
   type DrafKurasiSoal,
@@ -11,6 +7,7 @@ import {
   uraiImporMassalCsvAtauJson,
   uraiJsonAI,
 } from "@/lib/ingestion-pipeline";
+import { periksaAdminSupabaseSSR } from "@/lib/supabase-admin-ssr";
 
 const INSTRUKSI_EKSTRAKSI_TEKS_AI =
   "Anda adalah editor bank soal CPNS BKN profesional. Konversikan seluruh naskah soal mentah yang ditempel pengguna menjadi array JSON dengan kunci 'daftar_soal'. " +
@@ -20,30 +17,19 @@ const INSTRUKSI_EKSTRAKSI_TEKS_AI =
   "Keluarkan HANYA objek JSON valid tanpa narasi luar.";
 
 export async function POST(request: Request) {
-  const sesi = ekstrakSesiDariHeaderCookie(request.headers.get("cookie"));
-  if (!sesi) {
+  const hasilAdmin = await periksaAdminSupabaseSSR();
+  if (!hasilAdmin.sah) {
     return NextResponse.json(
       {
         status: "gagal",
-        pesan: "Silakan masuk ke Menu Admin terlebih dahulu untuk menyusun soal.",
+        pesan: hasilAdmin.alasan,
       },
-      { status: 401 }
-    );
-  }
-
-  const daftarAdmin = await bacaDaftarAkunAdminPublik();
-  if (!daftarAdmin.some((akun) => akun.id === sesi.id)) {
-    return NextResponse.json(
-      {
-        status: "gagal",
-        pesan: "Akun admin Anda tidak lagi aktif. Silakan masuk kembali.",
-      },
-      { status: 401 }
+      { status: hasilAdmin.statusHttp }
     );
   }
 
   const laju = periksaBatasLajuPermintaan({
-    identitasKlien: `kurasi-manual:${sesi.id}`,
+    identitasKlien: `kurasi-manual:${hasilAdmin.admin.id}`,
     batasMaksimal: 30,
     jendelaWaktuDetik: 60,
   });

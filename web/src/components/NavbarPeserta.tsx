@@ -7,7 +7,6 @@ import {
   LayoutDashboard,
   LogIn,
   Menu,
-  ShieldCheck,
   Sparkles,
   UserCheck,
   X,
@@ -80,13 +79,6 @@ export default function NavbarPeserta({
           <span>Masuk / Daftar</span>
         </Link>
       )}
-      <Link
-        href="/admin"
-        className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-100/80 px-3 py-2 text-xs font-bold text-slate-700 transition hover:bg-slate-200/70 sm:text-sm"
-      >
-        <ShieldCheck className="h-3.5 w-3.5 text-slate-600" />
-        <span>Menu Admin</span>
-      </Link>
       <Link
         href="/simulasi/skd/paket-perdana-gratis"
         className="inline-flex items-center gap-1.5 rounded-xl bg-blue-700 px-4 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-blue-800 active:scale-[0.99] sm:text-sm"

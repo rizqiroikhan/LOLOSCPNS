@@ -4,8 +4,20 @@ import {
   NAMA_COOKIE_SESI_ADMIN,
   verifikasiLoginAdmin,
 } from "@/lib/admin-auth";
+import { periksaAdminSupabaseSSR } from "@/lib/supabase-admin-ssr";
 
 export async function POST(request: Request) {
+  const hasilAdmin = await periksaAdminSupabaseSSR();
+  if (!hasilAdmin.sah) {
+    return NextResponse.json(
+      {
+        status: "gagal",
+        pesan: hasilAdmin.alasan,
+      },
+      { status: hasilAdmin.statusHttp }
+    );
+  }
+
   try {
     const ipKlien =
       request.headers.get("x-forwarded-for") || "admin-login-lokal";

@@ -1,40 +1,46 @@
 import { NextResponse } from "next/server";
 import {
   bacaDaftarAkunAdminPublik,
-  ekstrakSesiDariHeaderCookie,
   hapusAkunAdmin,
   periksaHakAksesManajemenAdmin,
   type PeranAkunAdmin,
   tambahAkunAdmin,
   ubahKataSandiAkunAdmin,
 } from "@/lib/admin-auth";
+import { periksaAdminSupabaseSSR } from "@/lib/supabase-admin-ssr";
 
-async function validasiSesiTerautentikasi(request: Request) {
-  const sesi = ekstrakSesiDariHeaderCookie(request.headers.get("cookie"));
-  if (!sesi) return null;
-  const daftar = await bacaDaftarAkunAdminPublik();
-  const cocok = daftar.find(
-    (a) => a.id === sesi.id || a.username === sesi.username
-  );
-  if (!cocok) return null;
+async function validasiSesiTerautentikasi() {
+  const hasil = await periksaAdminSupabaseSSR();
+  if (!hasil.sah) {
+    return {
+      sah: false as const,
+      statusHttp: hasil.statusHttp,
+      alasan: hasil.alasan,
+    };
+  }
+
   return {
-    ...sesi,
-    id: cocok.id,
-    peran: cocok.peran,
+    sah: true as const,
+    sesi: {
+      id: hasil.admin.id,
+      username: hasil.admin.email,
+      peran: hasil.admin.peran,
+    },
   };
 }
 
-export async function GET(request: Request) {
-  const sesi = await validasiSesiTerautentikasi(request);
-  if (!sesi) {
+export async function GET() {
+  const verifikasi = await validasiSesiTerautentikasi();
+  if (!verifikasi.sah) {
     return NextResponse.json(
       {
         status: "gagal",
-        pesan: "Sesi admin tidak valid atau telah berakhir. Silakan masuk kembali.",
+        pesan: verifikasi.alasan,
       },
-      { status: 401 }
+      { status: verifikasi.statusHttp }
     );
   }
+  const sesi = verifikasi.sesi;
 
   const daftarAkun = await bacaDaftarAkunAdminPublik();
   return NextResponse.json({
@@ -45,16 +51,17 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const sesi = await validasiSesiTerautentikasi(request);
-  if (!sesi) {
+  const verifikasi = await validasiSesiTerautentikasi();
+  if (!verifikasi.sah) {
     return NextResponse.json(
       {
         status: "gagal",
-        pesan: "Anda harus masuk ke Menu Admin sebelum menambahkan akun baru.",
+        pesan: verifikasi.alasan,
       },
-      { status: 401 }
+      { status: verifikasi.statusHttp }
     );
   }
+  const sesi = verifikasi.sesi;
 
   const izin = periksaHakAksesManajemenAdmin({
     peranPelaku: sesi.peran,
@@ -110,16 +117,17 @@ export async function POST(request: Request) {
 }
 
 export async function PATCH(request: Request) {
-  const sesi = await validasiSesiTerautentikasi(request);
-  if (!sesi) {
+  const verifikasi = await validasiSesiTerautentikasi();
+  if (!verifikasi.sah) {
     return NextResponse.json(
       {
         status: "gagal",
-        pesan: "Silakan masuk ke Menu Admin untuk memperbarui kata sandi.",
+        pesan: verifikasi.alasan,
       },
-      { status: 401 }
+      { status: verifikasi.statusHttp }
     );
   }
+  const sesi = verifikasi.sesi;
 
   try {
     const badan = await request.json();
@@ -168,16 +176,17 @@ export async function PATCH(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-  const sesi = await validasiSesiTerautentikasi(request);
-  if (!sesi) {
+  const verifikasi = await validasiSesiTerautentikasi();
+  if (!verifikasi.sah) {
     return NextResponse.json(
       {
         status: "gagal",
-        pesan: "Silakan masuk ke Menu Admin untuk menghapus akun admin.",
+        pesan: verifikasi.alasan,
       },
-      { status: 401 }
+      { status: verifikasi.statusHttp }
     );
   }
+  const sesi = verifikasi.sesi;
 
   try {
     const url = new URL(request.url);

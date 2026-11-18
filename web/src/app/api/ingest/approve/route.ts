@@ -1,32 +1,18 @@
 import { NextResponse } from "next/server";
-import {
-  bacaDaftarAkunAdminPublik,
-  ekstrakSesiDariHeaderCookie,
-} from "@/lib/admin-auth";
 import { buatEmbeddingTeks } from "@/lib/ai-client";
 import { normalisasiButirSoalEkstraksi } from "@/lib/ingestion-pipeline";
 import { buatKlienSupabaseServer } from "@/lib/supabase";
+import { periksaAdminSupabaseSSR } from "@/lib/supabase-admin-ssr";
 
 export async function POST(request: Request) {
-  const sesiAdmin = ekstrakSesiDariHeaderCookie(request.headers.get("cookie"));
-  if (!sesiAdmin) {
+  const hasilAdmin = await periksaAdminSupabaseSSR();
+  if (!hasilAdmin.sah) {
     return NextResponse.json(
       {
         status: "gagal",
-        pesan: "Silakan masuk ke Menu Admin terlebih dahulu untuk menyetujui soal.",
+        pesan: hasilAdmin.alasan,
       },
-      { status: 401 }
-    );
-  }
-
-  const daftarAdmin = await bacaDaftarAkunAdminPublik();
-  if (!daftarAdmin.some((akun) => akun.id === sesiAdmin.id)) {
-    return NextResponse.json(
-      {
-        status: "gagal",
-        pesan: "Sesi admin tidak lagi aktif. Silakan masuk kembali.",
-      },
-      { status: 401 }
+      { status: hasilAdmin.statusHttp }
     );
   }
 

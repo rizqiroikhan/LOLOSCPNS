@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { ekstrakSesiDariHeaderCookie } from "@/lib/admin-auth";
 import { panggilChatAI } from "@/lib/ai-client";
 import {
   panggilLayananAI,
@@ -8,16 +7,17 @@ import {
 import { uraiJsonAI } from "@/lib/ingestion-pipeline";
 import { REGULASI_SKD_321_2024 } from "@/lib/scoring-engine";
 import { buatKlienSupabaseServer } from "@/lib/supabase";
+import { periksaAdminSupabaseSSR } from "@/lib/supabase-admin-ssr";
 
 export async function POST(request: Request) {
-  const sesiAdmin = ekstrakSesiDariHeaderCookie(request.headers.get("cookie"));
-  if (!sesiAdmin) {
+  const hasilAdmin = await periksaAdminSupabaseSSR();
+  if (!hasilAdmin.sah) {
     return NextResponse.json(
       {
         status: "gagal",
-        pesan: "Silakan masuk ke Menu Admin terlebih dahulu untuk mengimpor regulasi.",
+        pesan: hasilAdmin.alasan,
       },
-      { status: 401 }
+      { status: hasilAdmin.statusHttp }
     );
   }
 
